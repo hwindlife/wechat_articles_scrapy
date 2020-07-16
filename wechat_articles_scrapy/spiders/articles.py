@@ -30,9 +30,9 @@ class ArticlesSpider(scrapy.Spider):
     page_length = '5'
 
     # 测试模式
-    testMode = True
-    test_art_link = 'http://mp.weixin.qq.com/s?__biz=MzA4MTM1NDcxMA==&mid=2650378464&idx=1&sn=4cce98f96abd3b2bfb55c2bc3b9cffe9&chksm=879b7a59b0ecf34fc3623ed0ae6a3626e8b7d671962816d3ad7fcb0fff392ffe24f4af2a68a6#rd'
-    test_art_id = '2650378464_1'
+    testMode = False
+    test_art_link = 'http://mp.weixin.qq.com/s?__biz=MzA4MTM1NDcxMA==&mid=2650378378&idx=1&sn=6d89a2dcee79300fc58796b9d2fd8862&chksm=879b7a33b0ecf32561c31ff807597be11c5108fe5c6af2358c67ed2fe89130e5e1ec2571803c#rd'
+    test_art_id = '2650378378_1'
     test_art_artjson = '{"app_msg_list":[{"aid":"","title":"test","digest":"","link":"","cover":"","create_time":1593682407,"link":""}]}'
 
     # 使用FormRequests发送请求，指定url，请求头信息，cookies
@@ -164,6 +164,6 @@ class ArticlesSpider(scrapy.Spider):
             result = re.search(target, content)
             if result is not None:
                 vid = result.group(0)
-                self.logger.debug('获取vid-------------------------------------------', vid)
+                self.logger.debug(f'获取vid-------------------------------------------{vid}')
                 return vid
         return None

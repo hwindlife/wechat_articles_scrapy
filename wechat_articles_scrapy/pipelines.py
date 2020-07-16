@@ -10,6 +10,7 @@ import json
 import os
 
 import emoji
+import pymongo
 from scrapy import Request
 from scrapy.pipelines.files import FilesPipeline
 from scrapy.pipelines.images import ImagesPipeline
@@ -22,16 +23,30 @@ from wechat_articles_scrapy.db.MysqlUtil import MysqlUtil
 from wechat_articles_scrapy.items import ArticleInfoItem, ImgDownloadItem, videoDownloadItem
 from wechat_articles_scrapy.util.DateUtil import DateUtil
 
-settings = get_project_settings()
+# settings = get_project_settings()
+
+check_file = "isRunning.txt"
 
 
 class ArticleInfoPipeline:
+
+    def open_spider(self, spider):
+        spider.logger.debug('--------spider_article_info------------start')
+        with open(check_file, "w") as cfile:  # 创建一个文件，代表爬虫在运行中
+            cfile.close()
+
     def process_item(self, item, spider):
         if isinstance(item, ArticleInfoItem):
             connector = MysqlUtil()
             MysqlDao.insert_article(connector, item)
             connector.end()
         return item
+
+    def close_spider(self, spider):
+        spider.logger.debug('--------spider_article_info------------end')
+        file_exist = os.path.isfile(check_file)
+        if file_exist:
+            os.remove(check_file)
 
 
 class ImagePipeline(ImagesPipeline):
@@ -62,7 +77,7 @@ class ImagePipeline(ImagesPipeline):
                 buf.seek(0)
                 checksum = md5sum(buf)
             width, height = image.size
-            self.logger.debug('-----------是否gif-------------', self.check_gif(image))
+            # self.logger.debug(f'-----------是否gif-------------{self.check_gif(image)}')
             if self.check_gif(image):
                 self.persist_gif(path, response.body, info)
             else:
@@ -74,11 +89,27 @@ class ImagePipeline(ImagesPipeline):
 
 
 class ImageSavePipeline(object):
+
+    def __init__(self, mongo_uri, mongo_db, mongo_port, server_url):
+        # 初始化方法__new__:构造方法，在内存中开辟一块空间
+        self.client = pymongo.MongoClient(mongo_uri, mongo_port)
+        self.db = self.client[mongo_db]
+        self.server_url = server_url
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls(
+            mongo_uri=crawler.settings.get('MONGO_URI'),
+            mongo_db=crawler.settings.get('MONGO_DB'),
+            mongo_port=crawler.settings.get('MONGO_PORT'),
+            server_url=crawler.settings.get('SELF_BASE_SERVER_URL')
+        )
+
     def process_item(self, item, spider):
         if isinstance(item, ImgDownloadItem):
             img_tag_list = item['img_tag_list']
             images = item['images']
-            self.logger.debug('数量是否相同：--------------------', len(img_tag_list) == len(images))
+            spider.logger.debug(f'数量是否相同：--------------------{len(img_tag_list) == len(images)}')
             if len(img_tag_list) == len(images) and len(img_tag_list) != 0:
 
                 for re_tmp in images:
@@ -86,7 +117,7 @@ class ImageSavePipeline(object):
                         del re_tmp['checksum']
                     if 'status' in re_tmp:
                         del re_tmp['status']
-                    re_tmp['path'] = settings['SELF_BASE_SERVER_URL'] + re_tmp['path']
+                    re_tmp['path'] = self.server_url + re_tmp['path']
 
                 for ind in range(len(img_tag_list)):
                     if 'data-src' in img_tag_list[ind].attrs:
@@ -98,8 +129,13 @@ class ImageSavePipeline(object):
                 MysqlDao.update_article_content(connector, item['article_id'],
                                                 emoji.demojize(str(item['soup_html'].contents[1])))
                 connector.end()
+                # MONGO表名为wx_img_video，插入数据
+                self.db['wx_img_video'].insert_one({'fakeid': item['fakeid'], 'article_id': item['article_id'],
+                                                    'path': '', 'result': json.dumps(images), 'type': '1'})
         return item
 
+    def close_spider(self, spider):
+        self.client.close()
 
 class VideoDownloadPipeline(FilesPipeline):
     # 修改file_path方法，使用提取的文件名保存文件
@@ -121,13 +157,38 @@ class VideoDownloadPipeline(FilesPipeline):
 
 
 class VideoSavePipeline(object):
+
+    def __init__(self, mongo_uri, mongo_db, mongo_port, server_url):
+        # 初始化方法__new__:构造方法，在内存中开辟一块空间
+        self.client = pymongo.MongoClient(mongo_uri, mongo_port)
+        self.db = self.client[mongo_db]
+        self.server_url = server_url
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls(
+            mongo_uri=crawler.settings.get('MONGO_URI'),
+            mongo_db=crawler.settings.get('MONGO_DB'),
+            mongo_port=crawler.settings.get('MONGO_PORT'),
+            server_url=crawler.settings.get('SELF_BASE_SERVER_URL')
+        )
+
+    def open_spider(self, spider):
+        pass
+
     def process_item(self, item, spider):
         if isinstance(item, videoDownloadItem):
             connector = MysqlUtil()
             MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'],
                                       item['files'][0]['path'], json.dumps(item['files']), '2')
             connector.end()
+            # MONGO表名为wx_img_video，插入数据
+            self.db['wx_img_video'].insert_one({'fakeid': item['fakeid'], 'article_id': item['article_id'],
+                                                'path': item['files'][0]['path'], 'result': json.dumps(item['files']),
+                                                'type': '2'})
 
+    def close_spider(self, spider):
+        self.client.close()
 
 # class LvyouPipeline(object):
 #     """

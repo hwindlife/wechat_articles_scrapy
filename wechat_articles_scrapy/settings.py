@@ -112,6 +112,11 @@ FILES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\video'
 FILES_URLS_FIELD = 'file_urls'
 FILES_RESULT_FIELD = 'files'
 
+# MONGO配置
+MONGO_URI = 'localhost'
+MONGO_DB = 'scrapy'
+MONGO_PORT = 27017
+
 # mysql配置
 MYSQL_HOST = 'localhost'
 MYSQL_PORT = 3306
