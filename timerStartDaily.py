@@ -50,14 +50,14 @@ while True:
         clawerTime = datetime.datetime.now()
         waitTime = clawerTime - startTime
         print(f"At time:{clawerTime}, start clawer: articles !!!, waitTime:{waitTime}")
-        cmdline.execute('scrapy crawl articles -s JOBDIR=crawls/storeMyRequest'.split())
+        # cmdline.execute('scrapy crawl articles -s JOBDIR=crawls/storeMyRequest'.split())
         os.system('scrapy crawl articles -s JOBDIR=crawls/storeMyRequest')
         print('------------爬虫结束了---------------')
         # break  # 爬虫结束之后，退出脚本
-    else:
-        print(f"At time:{datetime.datetime.now()}, articles is running, sleep to wait.")
+    # else:
+    #     print(f"At time:{datetime.datetime.now()}, articles is running, sleep to wait.")
     i += 1
-    time.sleep(0)  # 每60秒爬取一次
+    time.sleep(3600)  # 每3600秒爬取一次
     # miniter += 10
     # if miniter >= 1440:  # 等待满24小时，自动退出监控脚本
     #     break

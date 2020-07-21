@@ -99,7 +99,8 @@ ITEM_PIPELINES = {
 # HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
 # 保存文件设置
-IMAGES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\images'
+# IMAGES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\images'
+IMAGES_STORE = '/data/static/scrapy/wechat/images'
 IMAGES_URLS_FIELD = 'image_urls'
 IMAGES_RESULT_FIELD = 'images'
 # IMAGES_THUMBS = {
@@ -108,7 +109,8 @@ IMAGES_RESULT_FIELD = 'images'
 # }
 
 # 保存文件设置
-FILES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\video'
+# FILES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\video'
+FILES_STORE = '/data/static/scrapy/wechat/video'
 FILES_URLS_FIELD = 'file_urls'
 FILES_RESULT_FIELD = 'files'
 
@@ -135,8 +137,8 @@ LOG_ENABLED = True
 LOG_ENCODING = 'utf-8'
 
 # ================自定义配置================
-# 服务器根链接
-SELF_BASE_SERVER_URL = 'http://www.example.com/'
+# 静态资源根链接
+SELF_BASE_SERVER_URL = 'http://192.168.1.150/static/scrapy/wechat'
 # 获取微信视频url列表链接
 SELF_GETVIDEOURL_URL = 'https://mp.weixin.qq.com/mp/videoplayer?action=get_mp_video_play_url&preview=0&__biz={}&mid={}&idx={}&vid={}&uin=&key=&pass_ticket=&wxtoken=777&devicetype=&appmsg_token=&x5=0&f=json'
 # 获取公众号列表接口链接
