@@ -30,9 +30,9 @@ class ArticlesSpider(scrapy.Spider):
     page_length = '5'
 
     # 测试模式
-    testMode = False
-    test_art_link = 'http://mp.weixin.qq.com/s?__biz=MzA4MTM1NDcxMA==&mid=2650378378&idx=1&sn=6d89a2dcee79300fc58796b9d2fd8862&chksm=879b7a33b0ecf32561c31ff807597be11c5108fe5c6af2358c67ed2fe89130e5e1ec2571803c#rd'
-    test_art_id = '2650378378_1'
+    testMode = True
+    test_art_link = 'https://mp.weixin.qq.com/s?__biz=MzA4MTM1NDcxMA==&mid=2650376956&idx=1&sn=64749e57c1b684e70b1f26fbd6f98e29&chksm=879b6045b0ece953ad3dd7316edbb0cd6f263fd2286c770b0a216ac69771e21b0553f2b4cb48&mpshare=1&srcid=07222eBRlFfXoIfgzT46fVTt&sharer_sharetime=1595407653440&sharer_shareid=40bf552b62a64ccd008e389d94cc5e23&from=singlemessage&scene=1&subscene=10000&clicktime=1595415668&enterid=1595415668&ascene=1&devicetype=android-29&version=2700103f&nettype=3gnet&abtest_cookie=AAACAA%3D%3D&lang=zh_CN&exportkey=AYDHuJe1szBZMU3Am%2Boh4co%3D&pass_ticket=qM9j5N%2FkGqF8ijxXHxYb8rdp6%2B%2Bavh7hOwu1KabhxBmhCghgHL7H3S4cwJYM%2BL8b&wx_header=1'
+    test_art_id = '2650376956_1'
     test_art_artjson = '{"app_msg_list":[{"aid":"","title":"test","digest":"","link":"","cover":"","create_time":1593682407,"link":""}]}'
 
     # 使用FormRequests发送请求，指定url，请求头信息，cookies
@@ -75,7 +75,8 @@ class ArticlesSpider(scrapy.Spider):
                              callback=self.articles_parse)
 
     def articles_parse(self, response):
-        self.logger.info(f'------------文章列表-----------{response.json() if not self.testMode else self.test_art_artjson}')
+        self.logger.info(
+            f'------------文章列表-----------{response.json() if not self.testMode else self.test_art_artjson}')
         artcle_dict = json.loads(response.text if not self.testMode else self.test_art_artjson)
         if 'app_msg_list' in artcle_dict:
             article_list = artcle_dict['app_msg_list']
@@ -97,7 +98,7 @@ class ArticlesSpider(scrapy.Spider):
                 ai_item['cover_url'] = art['cover']
                 ai_item['create_time_wx'] = DateUtil.secondsToDatetime(art['create_time'])
                 # 返回文章item
-                yield ai_item
+                # yield ai_item
                 artresp = requests.get(url=arturl)
                 art_html = BeautifulSoup(artresp.content, 'lxml')
                 img_arr = art_html.find_all('img')
@@ -117,8 +118,8 @@ class ArticlesSpider(scrapy.Spider):
                 img_item['soup_html'] = art_html
                 self.logger.debug(f'===============img_url================{image_urls}')
                 # 返回下载图片item
-                yield img_item
-                vid = self.get_vid(str(artresp.content))
+                # yield img_item
+                vid = self.get_vid(str(artresp.content), article_id_temp)
                 # 没有vid说明没有视频
                 if vid is not None:
                     request = scrapy.Request(
@@ -128,6 +129,35 @@ class ArticlesSpider(scrapy.Spider):
                         callback=ArticlesSpider.video_parse)
                     # 返回获取视频url Request
                     yield request
+                else:
+                    ifr_arr = art_html.find_all('iframe')
+                    video_html_url = ifr_arr[0].attrs["data-src"]
+                    print('--------video_html--------', video_html_url)
+                    video_ffurl = furl(video_html_url)
+                    tencent_vid = video_ffurl.args['vid']
+                    print('--------tencent_vid--------', tencent_vid)
+                    video_conf_url = "https://h5vv.video.qq.com/getinfo?callback=tvp_request_getinfo_callback_615764&otype=json&vids={}&platform=11001&sphls=0&sb=1&nocache=0&appVer=V2.0Build9502&vids=e31174xgw73&defaultfmt=auto&sdtfrom=v3010&callback=tvp_request_getinfo_callback_615764"
+                    video_conf_url = video_conf_url.format(tencent_vid)
+                    print('--------video_conf_url--------', video_conf_url)
+                    video_conf_resp = requests.get(url=video_conf_url)
+                    video_conf_str = video_conf_resp.content.decode()
+                    video_conf_str = video_conf_str[video_conf_str.index("(") + 1: len(video_conf_str) - 1]
+                    video_conf_json = json.loads(video_conf_str)
+                    print('--------video_conf_resp--------', video_conf_json)
+                    fn = video_conf_json["vl"]["vi"][0]["fn"]
+                    fvkey = video_conf_json["vl"]["vi"][0]["fvkey"]
+                    ui_list = video_conf_json["vl"]["vi"][0]["ul"]["ui"]
+                    video_url = ""
+                    for ui in ui_list:
+                        if "ugcbsy.qq.com" in ui["url"]:
+                            video_url = ui["url"]
+                    video_url = fn.join([video_url, "?vkey="]).join(["", fvkey])
+                    print(video_url)
+                    video_item = videoDownloadItem()
+                    video_item['fakeid'] = ffurl.args['__biz']
+                    video_item['article_id'] = article_id_temp
+                    video_item['file_urls'] = [video_url]
+                    yield video_item
                 if self.testMode:
                     break
         else:
@@ -158,10 +188,11 @@ class ArticlesSpider(scrapy.Spider):
             url = attrs['src']
         return url
 
-    def get_vid(self, content):
+    def get_vid(self, content, article_id):
         if content is not None and content != '':
             target = r"wxv_.{19}"  # 匹配:wxv_1105179750743556096
             result = re.search(target, content)
+            self.logger.info(f"wxv----------artid----------{article_id}-----------result: {result}")
             if result is not None:
                 vid = result.group(0)
                 self.logger.debug(f'获取vid-------------------------------------------{vid}')

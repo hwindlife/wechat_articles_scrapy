@@ -99,8 +99,8 @@ ITEM_PIPELINES = {
 # HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
 # 保存文件设置
-# IMAGES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\images'
-IMAGES_STORE = '/data/static/scrapy/wechat/images'
+IMAGES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\images'
+# IMAGES_STORE = '/data/static/scrapy/wechat/images'
 IMAGES_URLS_FIELD = 'image_urls'
 IMAGES_RESULT_FIELD = 'images'
 # IMAGES_THUMBS = {
@@ -109,8 +109,8 @@ IMAGES_RESULT_FIELD = 'images'
 # }
 
 # 保存文件设置
-# FILES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\video'
-FILES_STORE = '/data/static/scrapy/wechat/video'
+FILES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\video'
+# FILES_STORE = '/data/static/scrapy/wechat/video'
 FILES_URLS_FIELD = 'file_urls'
 FILES_RESULT_FIELD = 'files'
 
