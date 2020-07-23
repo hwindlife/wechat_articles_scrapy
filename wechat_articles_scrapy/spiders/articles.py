@@ -98,7 +98,7 @@ class ArticlesSpider(scrapy.Spider):
                 ai_item['cover_url'] = art['cover']
                 ai_item['create_time_wx'] = DateUtil.secondsToDatetime(art['create_time'])
                 # 返回文章item
-                # yield ai_item
+                yield ai_item
                 artresp = requests.get(url=arturl)
                 art_html = BeautifulSoup(artresp.content, 'lxml')
                 img_arr = art_html.find_all('img')
@@ -117,8 +117,8 @@ class ArticlesSpider(scrapy.Spider):
                 img_item['img_tag_list'] = img_tag_list
                 img_item['soup_html'] = art_html
                 self.logger.debug(f'===============img_url================{image_urls}')
-                # 返回下载图片item
-                # yield img_item
+                # 返回图片item
+                yield img_item
                 vid = self.get_vid(str(artresp.content), article_id_temp)
                 # 没有vid说明没有视频
                 if vid is not None:
@@ -131,33 +131,41 @@ class ArticlesSpider(scrapy.Spider):
                     yield request
                 else:
                     ifr_arr = art_html.find_all('iframe')
-                    video_html_url = ifr_arr[0].attrs["data-src"]
-                    print('--------video_html--------', video_html_url)
-                    video_ffurl = furl(video_html_url)
-                    tencent_vid = video_ffurl.args['vid']
-                    print('--------tencent_vid--------', tencent_vid)
-                    video_conf_url = "https://h5vv.video.qq.com/getinfo?callback=tvp_request_getinfo_callback_615764&otype=json&vids={}&platform=11001&sphls=0&sb=1&nocache=0&appVer=V2.0Build9502&vids=e31174xgw73&defaultfmt=auto&sdtfrom=v3010&callback=tvp_request_getinfo_callback_615764"
-                    video_conf_url = video_conf_url.format(tencent_vid)
-                    print('--------video_conf_url--------', video_conf_url)
-                    video_conf_resp = requests.get(url=video_conf_url)
-                    video_conf_str = video_conf_resp.content.decode()
-                    video_conf_str = video_conf_str[video_conf_str.index("(") + 1: len(video_conf_str) - 1]
-                    video_conf_json = json.loads(video_conf_str)
-                    print('--------video_conf_resp--------', video_conf_json)
-                    fn = video_conf_json["vl"]["vi"][0]["fn"]
-                    fvkey = video_conf_json["vl"]["vi"][0]["fvkey"]
-                    ui_list = video_conf_json["vl"]["vi"][0]["ul"]["ui"]
-                    video_url = ""
-                    for ui in ui_list:
-                        if "ugcbsy.qq.com" in ui["url"]:
-                            video_url = ui["url"]
-                    video_url = fn.join([video_url, "?vkey="]).join(["", fvkey])
-                    print(video_url)
-                    video_item = videoDownloadItem()
-                    video_item['fakeid'] = ffurl.args['__biz']
-                    video_item['article_id'] = article_id_temp
-                    video_item['file_urls'] = [video_url]
-                    yield video_item
+                    if ifr_arr:
+                        video_html_url = ifr_arr[0].attrs["data-src"]
+                        # 处理腾讯视频
+                        if "v.qq.com" in video_html_url:
+                            # 腾讯云视频页面
+                            self.logger.info(f'--------tencent_video_html--------{video_html_url}')
+                            video_ffurl = furl(video_html_url)
+                            tencent_vid = video_ffurl.args['vid']
+                            video_conf_url = self.settings['TENCENT_VIDEO_CONF_URL'].format(tencent_vid)
+                            # 获取腾讯云视频参数
+                            self.logger.info(f'--------tencent_video_conf_url--------{video_conf_url}')
+                            video_conf_resp = requests.get(url=video_conf_url)
+                            # bytes 转 字符串
+                            video_conf_str = video_conf_resp.content.decode()
+                            video_conf_str = video_conf_str[video_conf_str.index("(") + 1: len(video_conf_str) - 1]
+                            video_conf_json = json.loads(video_conf_str)
+                            self.logger.info(f'--------tencent_video_conf_resp--------{video_conf_json}')
+                            fn = video_conf_json["vl"]["vi"][0]["fn"]
+                            fvkey = video_conf_json["vl"]["vi"][0]["fvkey"]
+                            ui_list = video_conf_json["vl"]["vi"][0]["ul"]["ui"]
+                            video_url = ""
+                            # 拼接腾讯云视频链接
+                            for ui in ui_list:
+                                if "ugcbsy.qq.com" in ui["url"]:
+                                    video_url = ui["url"]
+                            if video_url != "":
+                                video_url = fn.join([video_url, "?vkey="]).join(["", fvkey])
+                                self.logger.info(f'--------tencent_video_url--------{video_url}')
+                                video_item = videoDownloadItem()
+                                video_item['fakeid'] = ffurl.args['__biz']
+                                video_item['article_id'] = article_id_temp
+                                video_item['file_urls'] = [video_url]
+                            else:
+                                self.logger.info(f"--------------腾讯云链接获取异常--------------{article_id_temp}")
+                            yield video_item
                 if self.testMode:
                     break
         else:

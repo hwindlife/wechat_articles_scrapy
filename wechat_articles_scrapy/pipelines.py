@@ -52,7 +52,7 @@ class ArticleInfoPipeline:
 class ImagePipeline(ImagesPipeline):
     def file_path(self, request, response=None, info=None):
         image_guid = hashlib.sha1(to_bytes(request.url)).hexdigest()
-        return '%s/%s.%s' % (DateUtil.curDate(), image_guid, 'gif' if 'gif' in request.url else 'jpg')
+        return '%s/%s.%s' % (DateUtil.curDate1(), image_guid, 'gif' if 'gif' in request.url else 'jpg')
 
     def get_media_requests(self, item, info):
         if isinstance(item, ImgDownloadItem):
@@ -147,7 +147,7 @@ class VideoDownloadPipeline(FilesPipeline):
         file_type = 'mp4'
         file_name = hashlib.sha1(to_bytes(request.url)).hexdigest()
         # 修改使用item中保存的文件名作为下载文件的文件名，文件格式使用提取到的格式
-        file_name = u'{0}/{1}.{2}'.format(DateUtil.curDate(), file_name, file_type)
+        file_name = u'{0}/{1}.{2}'.format(DateUtil.curDate1(), file_name, file_type)
         return file_name
 
     def get_media_requests(self, item, info):
@@ -178,7 +178,7 @@ class VideoSavePipeline(object):
         pass
 
     def process_item(self, item, spider):
-        if isinstance(item, videoDownloadItem):
+        if isinstance(item, videoDownloadItem) and item['files']:
             video_url = self.server_url + '/video/' + item['files'][0]['path']
             connector = MysqlUtil()
             MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], video_url

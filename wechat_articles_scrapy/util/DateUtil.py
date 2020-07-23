@@ -4,6 +4,7 @@ import time
 
 class DateUtil(object):
     DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+    DATE1_FORMAT = "%Y%m%d"
     TIME_FORMAT = "%H:%M:%S"
 
     # 当前毫秒数
@@ -20,6 +21,11 @@ class DateUtil(object):
     @staticmethod
     def curDatetime():
         return datetime.datetime.strftime(datetime.datetime.now(), DateUtil.DATETIME_FORMAT)
+
+    # 当前日期 格式%Y%m%d
+    @staticmethod
+    def curDate1():
+        return datetime.datetime.strftime(datetime.datetime.now(), DateUtil.DATE1_FORMAT)
 
     # 当前日期 格式%Y-%m-%d
     @staticmethod

@@ -145,4 +145,17 @@ SELF_GETVIDEOURL_URL = 'https://mp.weixin.qq.com/mp/videoplayer?action=get_mp_vi
 SELF_OFFICIAL_URL = 'https://mp.weixin.qq.com/cgi-bin/searchbiz?lang=zh_CN&f=json&action=search_biz&ajax=1&begin={}&count={}&token={}&query={}'
 # 获取文章列表接口链接
 SELF_ARTICALS_URL = 'https://mp.weixin.qq.com/cgi-bin/appmsg?lang=zh_CN&f=json&action=list_ex&type=9&query=&begin={}&count={}&token={}&fakeid={}'
+# 获取腾讯视频链接参数
+TENCENT_VIDEO_CONF_URL = 'https://h5vv.video.qq.com/getinfo?callback=tvp_request_getinfo_callback_615764&otype=json&vids={}&platform=11001&sphls=0&sb=1&nocache=0&appVer=V2.0Build9502&vids=e31174xgw73&defaultfmt=auto&sdtfrom=v3010&callback=tvp_request_getinfo_callback_615764'
+
+
+
+
+
+
+
+
+
+
+
 
