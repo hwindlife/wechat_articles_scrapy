@@ -33,10 +33,16 @@ class ImgDownloadItem(scrapy.Item):
     fakeid = scrapy.Field()
     # 文章id
     article_id = scrapy.Field()
+    # 文章标题
+    title = scrapy.Field()
+    # 摘要
+    digest = scrapy.Field()
     # 图片tag列表
     img_tag_list = scrapy.Field()
     # 页面soup对象
     soup_html = scrapy.Field()
+    #图片种类，1：封面
+    img_poz = scrapy.Field()
     # 图片URL
     image_urls = scrapy.Field()
     # 图片结果信息

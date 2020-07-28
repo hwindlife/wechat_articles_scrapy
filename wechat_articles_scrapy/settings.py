@@ -98,7 +98,7 @@ ITEM_PIPELINES = {
 # HTTPCACHE_IGNORE_HTTP_CODES = []
 # HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
-# 保存文件设置
+# 保存图片设置
 IMAGES_STORE = 'D:\\develop\\temp\\scrapy\\wechat\\images'
 # IMAGES_STORE = '/data/static/scrapy/wechat/images'
 IMAGES_URLS_FIELD = 'image_urls'
@@ -126,6 +126,11 @@ MYSQL_DATABASE = 'scrapy'
 MYSQL_USER = 'root'
 MYSQL_PASSWORD = '123456'
 MYSQL_CHARSET = 'utf8'
+
+# ES配置
+ES_HOST = '192.168.1.150'
+ES_PORT = 9200
+
 
 # 日志配置
 startDate = datetime.datetime.now().strftime('%Y-%m-%d')

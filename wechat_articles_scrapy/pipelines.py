@@ -5,6 +5,7 @@
 
 
 # useful for handling different item types with a single interface
+import datetime
 import hashlib
 import json
 import os
@@ -15,10 +16,9 @@ from scrapy import Request
 from scrapy.pipelines.files import FilesPipeline
 from scrapy.pipelines.images import ImagesPipeline
 from scrapy.utils.misc import md5sum
-from scrapy.utils.project import get_project_settings
 from scrapy.utils.python import to_bytes
 
-from wechat_articles_scrapy.db.Dao import MysqlDao
+from wechat_articles_scrapy.db.Dao import MysqlDao, ESDao
 from wechat_articles_scrapy.db.MysqlUtil import MysqlUtil
 from wechat_articles_scrapy.items import ArticleInfoItem, ImgDownloadItem, videoDownloadItem
 from wechat_articles_scrapy.util.DateUtil import DateUtil
@@ -109,9 +109,8 @@ class ImageSavePipeline(object):
         if isinstance(item, ImgDownloadItem):
             img_tag_list = item['img_tag_list']
             images = item['images']
-            spider.logger.debug(f'数量是否相同：--------------------{len(img_tag_list) == len(images)}')
-            if len(img_tag_list) == len(images) and len(img_tag_list) != 0:
-
+            # spider.logger.debug(f'数量是否相同：--------------------{len(img_tag_list) == len(images)}')
+            if item["img_poz"] is not "1" and len(img_tag_list) == len(images) and len(img_tag_list) != 0:
                 for re_tmp in images:
                     if 'checksum' in re_tmp:
                         del re_tmp['checksum']
@@ -126,17 +125,27 @@ class ImageSavePipeline(object):
                         img_tag_list[ind].attrs['src'] = images[ind]['path']
                 connector = MysqlUtil()
                 MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], '', json.dumps(images), '1')
-                MysqlDao.update_article_content(connector, item['article_id'],
-                                                emoji.demojize(str(item['soup_html'].contents[1])))
+                # MysqlDao.update_article_content(connector, item['article_id'],
+                #                                 emoji.demojize(str(item['soup_html'])))
                 connector.end()
+                es_dao = ESDao()
+                es_dao.add_doc(item['article_id'], "wxat",
+                               {"article_id": item['article_id'], "title": item['title'],
+                                "digest": item['digest'], "content": emoji.demojize(str(item['soup_html'])),
+                                "@timestamp": datetime.datetime.now(), "@version": "1.0"})
                 # MONGO表名为wx_img_video，插入数据
                 # self.db['wx_img_video'].insert_one({'fakeid': item['fakeid'], 'article_id': item['article_id'],
                 #                                     'path': '', 'result': json.dumps(images), 'type': '1'})
+            elif item["img_poz"] is "1":
+                connector = MysqlUtil()
+                MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], '', json.dumps(images), '3')
+                connector.end()
         return item
 
     def close_spider(self, spider):
         # self.client.close()
         pass
+
 
 class VideoDownloadPipeline(FilesPipeline):
     # 修改file_path方法，使用提取的文件名保存文件
