@@ -1,4 +1,5 @@
 import re
+import time
 
 import requests
 from bs4 import BeautifulSoup
@@ -51,14 +52,7 @@ if __name__ == '__main__':
     #     print(c_re)
     # except ConflictError:
     #     print("文档已存在")
-    content = "wxv_123,dfefegefe,wxv_456,wxv_456"
-    target = r"wxv_.{3}"  #
-
-    result = re.findall(target, content)
-    li_new = {}.fromkeys(result).keys()
-    for temp in li_new:
-        print(temp)
-    # pass
+    print(time.time())
 
 
 

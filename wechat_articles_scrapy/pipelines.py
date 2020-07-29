@@ -9,6 +9,7 @@ import datetime
 import hashlib
 import json
 import os
+import time
 
 import emoji
 import pymongo
@@ -132,7 +133,7 @@ class ImageSavePipeline(object):
                 es_dao.add_doc(item['article_id'], "wxat",
                                {"article_id": item['article_id'], "title": item['title'],
                                 "digest": item['digest'], "content": emoji.demojize(str(item['soup_html'])),
-                                "@timestamp": datetime.datetime.now(), "@version": "1.0"})
+                                "@timestamp": int(time.time()), "@version": "1.0"})
                 # MONGO表名为wx_img_video，插入数据
                 # self.db['wx_img_video'].insert_one({'fakeid': item['fakeid'], 'article_id': item['article_id'],
                 #                                     'path': '', 'result': json.dumps(images), 'type': '1'})
