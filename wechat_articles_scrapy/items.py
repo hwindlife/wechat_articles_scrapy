@@ -41,19 +41,27 @@ class ImgDownloadItem(scrapy.Item):
     img_tag_list = scrapy.Field()
     # 页面soup对象
     soup_html = scrapy.Field()
-    #图片种类，1：封面
+    # 图片种类，1：视频封面
     img_poz = scrapy.Field()
+    # 视频类型，1：微信视频，2：腾讯视频
+    video_type = scrapy.Field()
+    # 视频vid
+    video_vid = scrapy.Field()
     # 图片URL
     image_urls = scrapy.Field()
     # 图片结果信息
     images = scrapy.Field()
 
 
-class videoDownloadItem(scrapy.Item):
+class VideoDownloadItem(scrapy.Item):
     # 公众号唯一标识
     fakeid = scrapy.Field()
     # 文章id
     article_id = scrapy.Field()
+    # 视频类型，1：微信视频，2：腾讯视频
+    video_type = scrapy.Field()
+    # 视频vid
+    video_vid = scrapy.Field()
     # 文件url
     file_urls = scrapy.Field()
     # 文件结果信息

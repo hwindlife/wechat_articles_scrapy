@@ -1,6 +1,7 @@
 """
 数据库连接工具类
 # """
+import logging
 import traceback
 
 import pymysql
@@ -32,6 +33,11 @@ class MysqlUtil(object):
         # 数据库构造函数，从连接池中取出连接，并生成操作游标
         self._conn = MysqlUtil.get_conn()
         self._cursor = self._conn.cursor()
+
+    @property
+    def logger(self):
+        logger = logging.getLogger("MysqlUtil")
+        return logging.LoggerAdapter(logger, {'MysqlUtil': self})
 
     # 获取链接
     @staticmethod

@@ -21,7 +21,7 @@ from scrapy.utils.python import to_bytes
 
 from wechat_articles_scrapy.db.Dao import MysqlDao, ESDao
 from wechat_articles_scrapy.db.MysqlUtil import MysqlUtil
-from wechat_articles_scrapy.items import ArticleInfoItem, ImgDownloadItem, videoDownloadItem
+from wechat_articles_scrapy.items import ArticleInfoItem, ImgDownloadItem, VideoDownloadItem
 from wechat_articles_scrapy.util.DateUtil import DateUtil
 
 # settings = get_project_settings()
@@ -127,7 +127,8 @@ class ImageSavePipeline(object):
                     elif 'src' in img_tag_list[ind].attrs:
                         img_tag_list[ind].attrs['src'] = images[ind]['path']
                 connector = MysqlUtil()
-                MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], '', json.dumps(images), '1')
+                MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], '', json.dumps(images), '1',
+                                          item['video_type'], item['video_vid'])
                 # MysqlDao.update_article_content(connector, item['article_id'],
                 #                                 emoji.demojize(str(item['soup_html'])))
                 connector.end()
@@ -141,7 +142,8 @@ class ImageSavePipeline(object):
                 #                                     'path': '', 'result': json.dumps(images), 'type': '1'})
             elif item["img_poz"] is "1":
                 connector = MysqlUtil()
-                MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], '', json.dumps(images), '3')
+                MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], '/images/' + images[0]['path'],
+                                          json.dumps(images), '3', item["video_type"], item["video_vid"])
                 connector.end()
         return item
 
@@ -163,7 +165,7 @@ class VideoDownloadPipeline(FilesPipeline):
         return file_name
 
     def get_media_requests(self, item, info):
-        if isinstance(item, videoDownloadItem):
+        if isinstance(item, VideoDownloadItem):
             for file_url in item['file_urls']:
                 # 为request带上meta参数，把item传递过去
                 yield Request(file_url, meta={'item': item})
@@ -190,11 +192,11 @@ class VideoSavePipeline(object):
         pass
 
     def process_item(self, item, spider):
-        if isinstance(item, videoDownloadItem) and item['files']:
-            video_url = self.server_url + '/video/' + item['files'][0]['path']
+        if isinstance(item, VideoDownloadItem) and item['files']:
+            video_path = '/video/' + item['files'][0]['path']
             connector = MysqlUtil()
-            MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], video_url
-                                      , json.dumps(item['files']), '2')
+            MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], video_path
+                                      , json.dumps(item['files']), '2', item["video_type"], item["video_vid"])
             connector.end()
             # MONGO表名为wx_img_video，插入数据
             # self.db['wx_img_video'].insert_one({'fakeid': item['fakeid'], 'article_id': item['article_id'],

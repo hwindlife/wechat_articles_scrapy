@@ -9,7 +9,7 @@ from furl import furl, urllib
 from scrapy.utils.project import get_project_settings
 
 from wechat_articles_scrapy.db.Dao import MysqlDao
-from wechat_articles_scrapy.items import ImgDownloadItem, ArticleInfoItem, videoDownloadItem
+from wechat_articles_scrapy.items import ImgDownloadItem, ArticleInfoItem, VideoDownloadItem
 from wechat_articles_scrapy.util.DateUtil import DateUtil
 
 
@@ -31,8 +31,8 @@ class ArticlesSpider(scrapy.Spider):
 
     # 测试模式
     testMode = True
-    test_art_link = 'https://mp.weixin.qq.com/s?__biz=MzA4MTM1NDcxMA==&mid=2650378979&idx=1&sn=f6cb8a972b3ddb9a23c1cc925c2758f8&ascene=1&devicetype=android-29&version=27001135&nettype=3gnet&abtest_cookie=AAACAA%3D%3D&lang=zh_CN&exportkey=AQXB%2BipFGB%2BdFEfsbmw4sx4%3D&pass_ticket=tTPhkj3g%2BoaxYCh3cRxiNaqvkSc1nXthA6y1tcpo4G%2FOrCe8oWehZMy3roirHR6C&wx_header=1'
-    test_art_id = '2650378979_1'
+    test_art_link = 'https://mp.weixin.qq.com/s?__biz=MzA4MTM1NDcxMA==&mid=2650378702&idx=1&sn=f0fd020e4d069a526a88872758bd38a2&ascene=1&devicetype=android-29&version=2700103f&nettype=3gnet&abtest_cookie=AAACAA%3D%3D&lang=zh_CN&exportkey=ARhw2p9zP1akckcJsvur5ow%3D&pass_ticket=X2AtnpB8puJut2ifG%2FJY1fsWM0sgCV%2F0GmIIYCblOjL03A1SG24i77tV0bDYWAnG&wx_header=1'
+    test_art_id = '2650378702_1'
     test_art_artjson = '{"app_msg_list":[{"aid":"","title":"test","digest":"","link":"","cover":"","create_time":1593682407,"link":""}]}'
 
     # 使用FormRequests发送请求，指定url，请求头信息，cookies
@@ -124,27 +124,88 @@ class ArticlesSpider(scrapy.Spider):
                         break
                 img_item['soup_html'] = soup_html
                 img_item['img_poz'] = '0'  # 正文图片
+                img_item['video_type'] = ""
+                img_item['video_vid'] = ""
                 print(len(soup_html))
                 self.logger.debug(f'===============img_url================{image_urls}')
                 # 返回图片item
                 yield img_item
-                vid_arr = self.get_vid(str(artresp.content), article_id_temp)
-                # 没有vid说明没有视频
-                if vid_arr is not None:
-                    for vid in vid_arr:
-                        request = scrapy.Request(
-                            url=self.settings['SELF_GETVIDEOURL_URL'].format(ffurl.args['__biz'], ffurl.args['mid'],
-                                                                             ffurl.args['idx'], vid),
-                            meta={'article_id': article_id_temp, 'fakeid': ffurl.args['__biz'], "": ""},
-                            callback=ArticlesSpider.video_parse)
-                        # 返回获取视频url Request
-                        yield request
+                # vid_arr = self.get_vid(str(artresp.content), article_id_temp)
+                # # 没有vid说明没有视频
+                # if vid_arr is not None:
+                #     for vid in vid_arr:
+                #         request = scrapy.Request(
+                #             url=self.settings['SELF_GETVIDEOURL_URL'].format(ffurl.args['__biz'], ffurl.args['mid'],
+                #                                                              ffurl.args['idx'], vid),
+                #             meta={'article_id': article_id_temp, 'fakeid': ffurl.args['__biz'], "vid": vid},
+                #             callback=ArticlesSpider.video_parse)
+                #         # 返回获取视频url Request
+                #         yield request
+
+                # 处理视频
                 ifr_arr = art_html.find_all('iframe')
                 if ifr_arr:
                     for ifr in ifr_arr:
+                        ifr_attrs = ifr.attrs
+                        video_type = ""
+                        video_vid = ""
+                        # 处理视频
+                        if 'data-mpvid' in ifr_attrs:
+                            # 有data-mpvid说明是微信视频
+                            video_type = "1"
+                            video_vid = ifr_attrs["data-mpvid"]
+                            wx_videourl_url = self.settings['SELF_GETVIDEOURL_URL'].format(ffurl.args['__biz'],
+                                                                                           ffurl.args['mid'],
+                                                                                           ffurl.args['idx'], video_vid)
+                            req_meta = {'article_id': article_id_temp, 'fakeid': ffurl.args['__biz'],
+                                        "video_vid": video_vid, "video_type": video_type}
+                            request = scrapy.Request(url=wx_videourl_url, meta=req_meta,
+                                                     callback=ArticlesSpider.video_parse)
+                            # 返回获取视频url Request
+                            yield request
+                        else:
+                            # 处理其他视频
+                            video_html_url = ifr.attrs["data-src"]
+                            print("------------Other_video_html_url-------------", video_html_url)
+                            if "v.qq.com" in video_html_url:
+                                # 腾讯视频
+                                video_type = "2"
+                                self.logger.info(f'--------tencent_video_html--------{video_html_url}')
+                                video_ffurl = furl(video_html_url)
+                                video_vid = video_ffurl.args['vid']
+                                video_conf_url = self.settings['TENCENT_VIDEO_CONF_URL'].format(video_vid)
+                                # 获取腾讯云视频参数
+                                self.logger.info(f'--------tencent_video_conf_url--------{video_conf_url}')
+                                video_conf_resp = requests.get(url=video_conf_url)
+                                # bytes 转 字符串
+                                video_conf_str = video_conf_resp.content.decode()
+                                video_conf_str = video_conf_str[video_conf_str.index("(") + 1: len(video_conf_str) - 1]
+                                video_conf_json = json.loads(video_conf_str)
+                                self.logger.info(f'--------tencent_video_conf_resp--------{video_conf_json}')
+                                fn = video_conf_json["vl"]["vi"][0]["fn"]
+                                fvkey = video_conf_json["vl"]["vi"][0]["fvkey"]
+                                ui_list = video_conf_json["vl"]["vi"][0]["ul"]["ui"]
+                                video_url = ""
+                                # 拼接腾讯云视频链接
+                                for ui in ui_list:
+                                    if "http://ugc" in ui["url"]:
+                                        video_url = ui["url"]
+                                        break
+                                if video_url != "":
+                                    video_url = fn.join([video_url, "?vkey="]).join(["", fvkey])
+                                    self.logger.info(f'--------tencent_video_url--------{video_url}')
+                                    video_item = VideoDownloadItem()
+                                    video_item['fakeid'] = ffurl.args['__biz']
+                                    video_item['article_id'] = article_id_temp
+                                    video_item['video_type'] = video_type
+                                    video_item['video_vid'] = video_vid
+                                    video_item['file_urls'] = [video_url]
+                                    yield video_item
+                                else:
+                                    self.logger.info(f"--------------腾讯云链接获取异常--------------{article_id_temp}")
                         # 处理视频封面
-                        video_cover_url = ifr.attrs["data-cover"]
-                        if video_cover_url is not None:
+                        if 'data-cover' in ifr_attrs:
+                            video_cover_url = ifr_attrs["data-cover"]
                             video_cover_url = urllib.parse.unquote(video_cover_url)
                             print("------------video_cover_url-------------", video_cover_url)
                             # 下载封面图片
@@ -154,43 +215,9 @@ class ArticlesSpider(scrapy.Spider):
                             video_cover_item['image_urls'] = [video_cover_url]
                             video_cover_item['img_tag_list'] = []
                             video_cover_item['img_poz'] = "1"
+                            video_cover_item['video_type'] = video_type
+                            video_cover_item['video_vid'] = video_vid
                             yield video_cover_item
-                        # 处理腾讯视频
-                        video_html_url = ifr.attrs["data-src"]
-                        print("------------video_html_url-------------", video_html_url)
-                        if "v.qq.com" in video_html_url:
-                            # 腾讯云视频页面
-                            self.logger.info(f'--------tencent_video_html--------{video_html_url}')
-                            video_ffurl = furl(video_html_url)
-                            tencent_vid = video_ffurl.args['vid']
-                            video_conf_url = self.settings['TENCENT_VIDEO_CONF_URL'].format(tencent_vid)
-                            # 获取腾讯云视频参数
-                            self.logger.info(f'--------tencent_video_conf_url--------{video_conf_url}')
-                            video_conf_resp = requests.get(url=video_conf_url)
-                            # bytes 转 字符串
-                            video_conf_str = video_conf_resp.content.decode()
-                            video_conf_str = video_conf_str[video_conf_str.index("(") + 1: len(video_conf_str) - 1]
-                            video_conf_json = json.loads(video_conf_str)
-                            self.logger.info(f'--------tencent_video_conf_resp--------{video_conf_json}')
-                            fn = video_conf_json["vl"]["vi"][0]["fn"]
-                            fvkey = video_conf_json["vl"]["vi"][0]["fvkey"]
-                            ui_list = video_conf_json["vl"]["vi"][0]["ul"]["ui"]
-                            video_url = ""
-                            # 拼接腾讯云视频链接
-                            for ui in ui_list:
-                                if "http://ugc" in ui["url"]:
-                                    video_url = ui["url"]
-                                    break
-                            if video_url != "":
-                                video_url = fn.join([video_url, "?vkey="]).join(["", fvkey])
-                                self.logger.info(f'--------tencent_video_url--------{video_url}')
-                                video_item = videoDownloadItem()
-                                video_item['fakeid'] = ffurl.args['__biz']
-                                video_item['article_id'] = article_id_temp
-                                video_item['file_urls'] = [video_url]
-                                yield video_item
-                            else:
-                                self.logger.info(f"--------------腾讯云链接获取异常--------------{article_id_temp}")
                 if self.testMode:
                     break
         else:
@@ -203,9 +230,11 @@ class ArticlesSpider(scrapy.Spider):
             for url_temp in url_list:
                 # 视频质量，1：流程，2：高清，3：超清
                 if url_temp['video_quality_level'] == 1:
-                    item = videoDownloadItem()
+                    item = VideoDownloadItem()
                     item['fakeid'] = response.meta['fakeid']
                     item['article_id'] = response.meta['article_id']
+                    item['video_type'] = response.meta['video_type']
+                    item['video_vid'] = response.meta['video_vid']
                     item['file_urls'] = [url_temp['url']]
                     yield item
                     break

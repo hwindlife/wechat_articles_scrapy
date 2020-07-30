@@ -40,11 +40,11 @@ class MysqlDao:
                               item['create_time_wx']))
 
     @staticmethod
-    def insert_img_video(connector, fakeid, article_id, path, info, typee):
+    def insert_img_video(connector, fakeid, article_id, path, info, typee, video_type, video_vid):
         insert_sql = """
-                        insert into wx_img_video(fakeid, article_id, path, result, type) VALUES (%s,%s,%s,%s,%s)
+                        insert into wx_img_video(fakeid, article_id, path, result, type, video_type, video_vid) VALUES (%s,%s,%s,%s,%s,%s,%s)
                      """
-        connector.insert_one(insert_sql, (fakeid, article_id, path, info, typee))
+        connector.insert_one(insert_sql, (fakeid, article_id, path, info, typee, video_type, video_vid))
 
     @staticmethod
     def update_article_content(connector, article_id, content):
