@@ -113,10 +113,12 @@ class ImageSavePipeline(object):
             # spider.logger.debug(f'数量是否相同：--------------------{len(img_tag_list) == len(images)}')
             if item["img_poz"] is not "1" and len(img_tag_list) == len(images) and len(img_tag_list) != 0:
                 for re_tmp in images:
-                    if 'checksum' in re_tmp:
-                        del re_tmp['checksum']
-                    if 'status' in re_tmp:
-                        del re_tmp['status']
+                    # 删除无用属性
+                    # if 'checksum' in re_tmp:
+                    #     del re_tmp['checksum']
+                    # if 'status' in re_tmp:
+                    #     del re_tmp['status']
+                    # 拼接本地图片访问路径
                     re_tmp['path'] = self.server_url + '/images/' + re_tmp['path']
 
                 for ind in range(len(img_tag_list)):

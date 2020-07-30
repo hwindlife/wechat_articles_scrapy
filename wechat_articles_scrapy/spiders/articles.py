@@ -142,8 +142,7 @@ class ArticlesSpider(scrapy.Spider):
                 ifr_arr = art_html.find_all('iframe')
                 if ifr_arr:
                     for ifr in ifr_arr:
-                        video_html_url = ifr.attrs["data-src"]
-                        print("------------video_html_url-------------", video_html_url)
+                        # 处理视频封面
                         video_cover_url = ifr.attrs["data-cover"]
                         if video_cover_url is not None:
                             video_cover_url = urllib.parse.unquote(video_cover_url)
@@ -157,6 +156,8 @@ class ArticlesSpider(scrapy.Spider):
                             video_cover_item['img_poz'] = "1"
                             yield video_cover_item
                         # 处理腾讯视频
+                        video_html_url = ifr.attrs["data-src"]
+                        print("------------video_html_url-------------", video_html_url)
                         if "v.qq.com" in video_html_url:
                             # 腾讯云视频页面
                             self.logger.info(f'--------tencent_video_html--------{video_html_url}')
