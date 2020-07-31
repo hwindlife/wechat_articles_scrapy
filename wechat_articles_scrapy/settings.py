@@ -135,7 +135,7 @@ ES_PORT = 9200
 # 日志配置
 startDate = datetime.datetime.now().strftime('%Y-%m-%d')
 LOG_FILE = f"log/article.{startDate}.log"
-LOG_LEVEL = 'DEBUG'
+LOG_LEVEL = 'INFO'
 # 启用logging，默认True
 LOG_ENABLED = True
 # 默认: ‘utf-8’，logging使用的编码
@@ -154,8 +154,9 @@ SELF_ARTICALS_URL = 'https://mp.weixin.qq.com/cgi-bin/appmsg?lang=zh_CN&f=json&a
 TENCENT_VIDEO_CONF_URL = 'https://h5vv.video.qq.com/getinfo?callback=tvp_request_getinfo_callback_615764&otype=json&vids={}&platform=11001&sphls=0&sb=1&nocache=0&appVer=V2.0Build9502&vids=e31174xgw73&defaultfmt=auto&sdtfrom=v3010&callback=tvp_request_getinfo_callback_615764'
 
 
-
-
+# kafka配置
+KAFKA_BROKERS = ['192.168.1.150:9092', '192.168.1.150:9093', '192.168.1.150:9094']
+KAFKA_WXARTICLE_TOPIC = 'wx_article'
 
 
 

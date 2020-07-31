@@ -52,7 +52,7 @@ if __name__ == '__main__':
     #     print(c_re)
     # except ConflictError:
     #     print("文档已存在")
-    print(time.time())
+    print(type(None))
 
 
 

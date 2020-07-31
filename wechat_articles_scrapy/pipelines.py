@@ -5,23 +5,19 @@
 
 
 # useful for handling different item types with a single interface
-import datetime
 import hashlib
 import json
 import os
-import time
 
 import emoji
-import pymongo
 from scrapy import Request
 from scrapy.pipelines.files import FilesPipeline
 from scrapy.pipelines.images import ImagesPipeline
 from scrapy.utils.misc import md5sum
 from scrapy.utils.python import to_bytes
 
-from wechat_articles_scrapy.db.Dao import MysqlDao, ESDao
-from wechat_articles_scrapy.db.MysqlUtil import MysqlUtil
 from wechat_articles_scrapy.items import ArticleInfoItem, ImgDownloadItem, VideoDownloadItem
+from wechat_articles_scrapy.kafka.WxArticlePrd import WxArticlePrd
 from wechat_articles_scrapy.util.DateUtil import DateUtil
 
 # settings = get_project_settings()
@@ -38,13 +34,19 @@ class ArticleInfoPipeline:
 
     def process_item(self, item, spider):
         if isinstance(item, ArticleInfoItem):
-            connector = MysqlUtil()
-            MysqlDao.insert_article(connector, item)
-            connector.end()
+            # connector = MysqlUtil()
+            # MysqlDao.insert_article(connector, item)
+            # connector.end()
+            # 推送到kafka
+            kfk_mess = {'fakeid': item['fakeid'], 'article_id': item['article_id'], 'title': item['title'],
+                        'digest': item['digest'], 'link': item['link'], 'cover_url': item['cover_url'],
+                        'create_time_wx': item['create_time_wx'], 'kafka_msg_type': 'list'}
+            WxArticlePrd.send_msg(kfk_mess)
         return item
 
     def close_spider(self, spider):
         spider.logger.debug('--------spider_article_info------------end')
+        WxArticlePrd.close()
         # file_exist = os.path.isfile(check_file)
         # if file_exist:
         #     os.remove(check_file)
@@ -93,8 +95,8 @@ class ImageSavePipeline(object):
 
     def __init__(self, mongo_uri, mongo_db, mongo_port, server_url):
         # 初始化方法__new__:构造方法，在内存中开辟一块空间
-        self.client = pymongo.MongoClient(mongo_uri, mongo_port)
-        self.db = self.client[mongo_db]
+        # self.client = pymongo.MongoClient(mongo_uri, mongo_port)
+        # self.db = self.client[mongo_db]
         self.server_url = server_url
 
     @classmethod
@@ -126,25 +128,35 @@ class ImageSavePipeline(object):
                         img_tag_list[ind].attrs['data-src'] = images[ind]['path']
                     elif 'src' in img_tag_list[ind].attrs:
                         img_tag_list[ind].attrs['src'] = images[ind]['path']
-                connector = MysqlUtil()
-                MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], '', json.dumps(images), '1',
-                                          item['video_type'], item['video_vid'])
-                # MysqlDao.update_article_content(connector, item['article_id'],
-                #                                 emoji.demojize(str(item['soup_html'])))
-                connector.end()
-                es_dao = ESDao()
-                es_dao.add_doc(item['article_id'], "wxat",
-                               {"article_id": item['article_id'], "title": item['title'],
-                                "digest": item['digest'], "content": emoji.demojize(str(item['soup_html'])),
-                                "@timestamp": int(time.time()), "@version": "1.0"})
+                params = {"fakeid": item['fakeid'], "article_id": item['article_id'], "path": '',
+                          "info": json.dumps(images), "type": '1', "video_type": item['video_type'],
+                          "video_vid": item['video_vid'], "kafka_msg_type": "img_content", "title": item['title'],
+                          "digest": item['digest'], "content": emoji.demojize(str(item['soup_html']))}
+                # connector = MysqlUtil()
+                # MysqlDao.insert_img_video(connector, params)
+                # connector.end()
+                # 推送kafka
+                WxArticlePrd.send_msg(params)
+                # 插入es
+                # es_dao = ESDao()
+                # es_dao.add_doc(item['article_id'], "wxat",
+                #                {"article_id": item['article_id'], "title": item['title'],
+                #                 "digest": item['digest'], "content": emoji.demojize(str(item['soup_html'])),
+                #                 "@timestamp": int(time.time()), "@version": "1.0"})
                 # MONGO表名为wx_img_video，插入数据
                 # self.db['wx_img_video'].insert_one({'fakeid': item['fakeid'], 'article_id': item['article_id'],
                 #                                     'path': '', 'result': json.dumps(images), 'type': '1'})
             elif item["img_poz"] is "1":
-                connector = MysqlUtil()
-                MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], '/images/' + images[0]['path'],
-                                          json.dumps(images), '3', item["video_type"], item["video_vid"])
-                connector.end()
+                params = {"fakeid": item['fakeid'], "article_id": item['article_id'],
+                          "path": '/images/' + images[0]['path'], "info": json.dumps(images), "type": '3',
+                          "video_type": item['video_type'], "video_vid": item['video_vid'],
+                          "kafka_msg_type": "img_video_cover"}
+                # 保存到mysql
+                # connector = MysqlUtil()
+                # MysqlDao.insert_img_video(connector, params)
+                # connector.end()
+                # 推送kafka
+                WxArticlePrd.send_msg(params)
         return item
 
     def close_spider(self, spider):
@@ -175,8 +187,8 @@ class VideoSavePipeline(object):
 
     def __init__(self, mongo_uri, mongo_db, mongo_port, server_url):
         # 初始化方法__new__:构造方法，在内存中开辟一块空间
-        self.client = pymongo.MongoClient(mongo_uri, mongo_port)
-        self.db = self.client[mongo_db]
+        # self.client = pymongo.MongoClient(mongo_uri, mongo_port)
+        # self.db = self.client[mongo_db]
         self.server_url = server_url
 
     @classmethod
@@ -194,10 +206,15 @@ class VideoSavePipeline(object):
     def process_item(self, item, spider):
         if isinstance(item, VideoDownloadItem) and item['files']:
             video_path = '/video/' + item['files'][0]['path']
-            connector = MysqlUtil()
-            MysqlDao.insert_img_video(connector, item['fakeid'], item['article_id'], video_path
-                                      , json.dumps(item['files']), '2', item["video_type"], item["video_vid"])
-            connector.end()
+            params = {"fakeid": item['fakeid'], "article_id": item['article_id'],
+                      "path": video_path, "info": json.dumps(item['files']),
+                      "type": '2', "video_type": item['video_type'], "video_vid": item['video_vid'],
+                      "kafka_msg_type": "video"}
+            # connector = MysqlUtil()
+            # MysqlDao.insert_img_video(connector, params)
+            # connector.end()
+            # 推送kafka
+            WxArticlePrd.send_msg(params)
             # MONGO表名为wx_img_video，插入数据
             # self.db['wx_img_video'].insert_one({'fakeid': item['fakeid'], 'article_id': item['article_id'],
             #                                     'path': video_url, 'result': json.dumps(item['files']),

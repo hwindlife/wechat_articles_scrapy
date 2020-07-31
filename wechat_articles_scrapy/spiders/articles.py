@@ -1,6 +1,7 @@
 import json
 import re
 
+
 import requests
 import scrapy
 from bs4 import BeautifulSoup
@@ -31,8 +32,8 @@ class ArticlesSpider(scrapy.Spider):
 
     # 测试模式
     testMode = True
-    test_art_link = 'https://mp.weixin.qq.com/s?__biz=MzA4MTM1NDcxMA==&mid=2650378702&idx=1&sn=f0fd020e4d069a526a88872758bd38a2&ascene=1&devicetype=android-29&version=2700103f&nettype=3gnet&abtest_cookie=AAACAA%3D%3D&lang=zh_CN&exportkey=ARhw2p9zP1akckcJsvur5ow%3D&pass_ticket=X2AtnpB8puJut2ifG%2FJY1fsWM0sgCV%2F0GmIIYCblOjL03A1SG24i77tV0bDYWAnG&wx_header=1'
-    test_art_id = '2650378702_1'
+    test_art_link = 'https://mp.weixin.qq.com/s?__biz=MzUzNTAxODAzMA==&mid=2247495057&idx=1&sn=e2fb647752351b88c64068ff64190c7e&ascene=1&devicetype=android-29&version=27001135&nettype=3gnet&abtest_cookie=AAACAA%3D%3D&lang=zh_CN&exportkey=AcoR9GAVn5FHO2zOhibs9XU%3D&pass_ticket=KEKPfD2CWctHtwJJhorDl47%2F7OEwzLeptxToo1UbjBLxSmG07bjijfj1paPaTkbr&wx_header=1'
+    test_art_id = '2247495057_1'
     test_art_artjson = '{"app_msg_list":[{"aid":"","title":"test","digest":"","link":"","cover":"","create_time":1593682407,"link":""}]}'
 
     # 使用FormRequests发送请求，指定url，请求头信息，cookies
@@ -126,21 +127,9 @@ class ArticlesSpider(scrapy.Spider):
                 img_item['img_poz'] = '0'  # 正文图片
                 img_item['video_type'] = ""
                 img_item['video_vid'] = ""
-                print(len(soup_html))
                 self.logger.debug(f'===============img_url================{image_urls}')
                 # 返回图片item
                 yield img_item
-                # vid_arr = self.get_vid(str(artresp.content), article_id_temp)
-                # # 没有vid说明没有视频
-                # if vid_arr is not None:
-                #     for vid in vid_arr:
-                #         request = scrapy.Request(
-                #             url=self.settings['SELF_GETVIDEOURL_URL'].format(ffurl.args['__biz'], ffurl.args['mid'],
-                #                                                              ffurl.args['idx'], vid),
-                #             meta={'article_id': article_id_temp, 'fakeid': ffurl.args['__biz'], "vid": vid},
-                #             callback=ArticlesSpider.video_parse)
-                #         # 返回获取视频url Request
-                #         yield request
 
                 # 处理视频
                 ifr_arr = art_html.find_all('iframe')
@@ -208,7 +197,6 @@ class ArticlesSpider(scrapy.Spider):
                             video_cover_url = ifr_attrs["data-cover"]
                             video_cover_url = urllib.parse.unquote(video_cover_url)
                             print("------------video_cover_url-------------", video_cover_url)
-                            # 下载封面图片
                             video_cover_item = ImgDownloadItem()
                             video_cover_item['fakeid'] = ffurl.args['__biz']
                             video_cover_item['article_id'] = article_id_temp
