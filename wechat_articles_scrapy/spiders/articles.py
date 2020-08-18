@@ -138,7 +138,7 @@ class ArticlesSpider(scrapy.Spider):
                         ifr_attrs = ifr.attrs
                         video_type = ""
                         video_vid = ""
-                        # 处理视频
+                        # 处理微信视频
                         if 'data-mpvid' in ifr_attrs:
                             # 有data-mpvid说明是微信视频
                             video_type = "1"

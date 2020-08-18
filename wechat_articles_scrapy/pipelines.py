@@ -45,7 +45,7 @@ class ArticleInfoPipeline:
         return item
 
     def close_spider(self, spider):
-        spider.logger.debug('--------spider_article_info------------end')
+        # spider.logger.debug('--------spider_article_info_1------------end')
         WxArticlePrd.close()
         # file_exist = os.path.isfile(check_file)
         # if file_exist:
@@ -89,6 +89,10 @@ class ImagePipeline(ImagesPipeline):
                     meta={'width': width, 'height': height},
                     headers={'Content-Type': 'image/jpeg'})
         return checksum
+
+    def close_spider(self, spider):
+        # spider.logger.debug('--------spider_article_info_2------------end')
+        pass
 
 
 class ImageSavePipeline(object):
@@ -160,7 +164,7 @@ class ImageSavePipeline(object):
         return item
 
     def close_spider(self, spider):
-        # self.client.close()
+        # spider.logger.debug('--------spider_article_info_3------------end')
         pass
 
 
@@ -181,6 +185,10 @@ class VideoDownloadPipeline(FilesPipeline):
             for file_url in item['file_urls']:
                 # 为request带上meta参数，把item传递过去
                 yield Request(file_url, meta={'item': item})
+
+    def close_spider(self, spider):
+        # spider.logger.debug('--------spider_article_info_4------------end')
+        pass
 
 
 class VideoSavePipeline(object):
@@ -221,7 +229,7 @@ class VideoSavePipeline(object):
             #                                     'type': '2'})
 
     def close_spider(self, spider):
-        # self.client.close()
+        # spider.logger.debug('--------spider_article_info_5------------end')
         pass
 
 # class LvyouPipeline(object):

@@ -131,11 +131,14 @@ MYSQL_CHARSET = 'utf8'
 ES_HOST = '192.168.1.150'
 ES_PORT = 9200
 
+# REDIS配置
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379
 
 # 日志配置
 startDate = datetime.datetime.now().strftime('%Y-%m-%d')
 LOG_FILE = f"log/article.{startDate}.log"
-LOG_LEVEL = 'INFO'
+LOG_LEVEL = 'DEBUG'
 # 启用logging，默认True
 LOG_ENABLED = True
 # 默认: ‘utf-8’，logging使用的编码
@@ -145,13 +148,18 @@ LOG_ENCODING = 'utf-8'
 # 静态资源根链接
 SELF_BASE_SERVER_URL = 'http://192.168.1.150/static/scrapy/wechat'
 # 获取微信视频url列表链接
-SELF_GETVIDEOURL_URL = 'https://mp.weixin.qq.com/mp/videoplayer?action=get_mp_video_play_url&preview=0&__biz={}&mid={}&idx={}&vid={}&uin=&key=&pass_ticket=&wxtoken=777&devicetype=&appmsg_token=&x5=0&f=json'
+SELF_GETVIDEOURL_URL = 'https://mp.weixin.qq.com/mp/videoplayer?action=get_mp_video_play_url&preview=0&__biz={}' \
+                       '&mid={}&idx={}&vid={}&uin=&key=&pass_ticket=&wxtoken=777&devicetype=&appmsg_token=&x5=0&f=json'
 # 获取公众号列表接口链接
-SELF_OFFICIAL_URL = 'https://mp.weixin.qq.com/cgi-bin/searchbiz?lang=zh_CN&f=json&action=search_biz&ajax=1&begin={}&count={}&token={}&query={}'
+SELF_OFFICIAL_URL = 'https://mp.weixin.qq.com/cgi-bin/searchbiz?lang=zh_CN&f=json&action=search_biz&ajax=1' \
+                    '&begin={}&count={}&token={}&query={}'
 # 获取文章列表接口链接
-SELF_ARTICALS_URL = 'https://mp.weixin.qq.com/cgi-bin/appmsg?lang=zh_CN&f=json&action=list_ex&type=9&query=&begin={}&count={}&token={}&fakeid={}'
+SELF_ARTICALS_URL = 'https://mp.weixin.qq.com/cgi-bin/appmsg?lang=zh_CN&f=json&action=list_ex&type=9&query=' \
+                    '&begin={}&count={}&token={}&fakeid={}'
 # 获取腾讯视频链接参数
-TENCENT_VIDEO_CONF_URL = 'https://h5vv.video.qq.com/getinfo?callback=tvp_request_getinfo_callback_615764&otype=json&vids={}&platform=11001&sphls=0&sb=1&nocache=0&appVer=V2.0Build9502&vids=e31174xgw73&defaultfmt=auto&sdtfrom=v3010&callback=tvp_request_getinfo_callback_615764'
+TENCENT_VIDEO_CONF_URL = 'https://h5vv.video.qq.com/getinfo?callback=tvp_request_getinfo_callback_615764' \
+                         '&otype=json&vids={}&platform=11001&sphls=0&sb=1&nocache=0&appVer=V2.0Build9502' \
+                         '&vids=e31174xgw73&defaultfmt=auto&sdtfrom=v3010&callback=tvp_request_getinfo_callback_615764'
 
 
 # kafka配置

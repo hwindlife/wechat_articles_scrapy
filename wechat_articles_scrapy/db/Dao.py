@@ -1,10 +1,10 @@
-from wechat_articles_scrapy.db.MysqlUtil import MysqlUtil
-from elasticsearch_dsl import Text, Date, Keyword, Integer, Document, Completion
-from elasticsearch_dsl import analyzer
-from elasticsearch_dsl.connections import connections
-from elasticsearch import Elasticsearch, ConflictError
 import logging
+
+from elasticsearch import Elasticsearch, ConflictError
+from redis import StrictRedis
 from scrapy.utils.project import get_project_settings
+
+from wechat_articles_scrapy.db.MysqlUtil import MysqlUtil
 
 
 class MysqlDao:
@@ -56,13 +56,12 @@ class MysqlDao:
 
 
 class ESDao:
-
     name = "ESDao"
 
     # 获取setting文件中的配置
     settings = get_project_settings()
 
-    client = Elasticsearch(hosts=[settings.get('ES_HOST')])
+    _client = Elasticsearch(hosts=[settings.get('ES_HOST')])
 
     def __init__(self):
         pass
@@ -74,19 +73,51 @@ class ESDao:
 
     def add_doc(self, doc_id, index, body):
         try:
-            result = self.client.create(index=index, id=doc_id, body=body)
+            result = self._client.create(index=index, id=doc_id, body=body)
             self.logger.info(result)
         except ConflictError:
             self.logger.error(f"文档已存在---------------index[{index}]----doc_id[{doc_id}]")
 
 
+class RedisDao:
+    name = "RedisDao"
+    # 获取setting文件中的配置
+    settings = get_project_settings()
+    _redis = StrictRedis(host=settings.get('REDIS_HOST'), port=settings.get('REDIS_PORT'), db=0, password=None)
+
+    @classmethod
+    def hset_one(cls, name: str, key: str, value):
+        cls._redis.hset(name, key, value)
+
+    @classmethod
+    def hset_batch(cls, name: str, dic: dict):
+        for k, v in dic.items():
+            cls._redis.hset(name, k, v)
+
+    @classmethod
+    def hget_one(cls, name: str, key: str):
+        return cls._redis.hget(name, key)
+
+    @classmethod
+    def hget_all(cls, name: str):
+        return cls._redis.hgetall(name)
+
+    @classmethod
+    def hexists(cls, name: str, key: str):
+        return cls._redis.hexists(name, key)
+
+    @classmethod
+    def exists_name(cls, name: str):
+        return cls._redis.exists(name)
+
+    @classmethod
+    def expire(cls, name: str, secds):
+        cls._redis.expire(name, secds)
+
+    def __init__(self):
+        pass
+
+
 if __name__ == '__main__':
     result = MysqlDao.get_count_by_articleid('2650378464_1')
     print(result)
-
-
-
-
-
-
-
