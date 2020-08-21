@@ -8,19 +8,23 @@
 import hashlib
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 import emoji
 from scrapy import Request
 from scrapy.pipelines.files import FilesPipeline
 from scrapy.pipelines.images import ImagesPipeline
 from scrapy.utils.misc import md5sum
+from scrapy.utils.project import get_project_settings
 from scrapy.utils.python import to_bytes
 
+from wechat_articles_scrapy.db.Dao import RedisDao
 from wechat_articles_scrapy.items import ArticleInfoItem, ImgDownloadItem, VideoDownloadItem
 from wechat_articles_scrapy.kafka.WxArticlePrd import WxArticlePrd
+from wechat_articles_scrapy.util import HttpUtils, txcosutil
 from wechat_articles_scrapy.util.DateUtil import DateUtil
 
-# settings = get_project_settings()
+settings = get_project_settings()
 
 check_file = "isRunning.txt"
 
@@ -37,16 +41,26 @@ class ArticleInfoPipeline:
             # connector = MysqlUtil()
             # MysqlDao.insert_article(connector, item)
             # connector.end()
+            fakeid = item['fakeid']
+            article_id = item['article_id']
             # 推送到kafka
-            kfk_mess = {'fakeid': item['fakeid'], 'article_id': item['article_id'], 'title': item['title'],
+            kfk_mess = {'fakeid': fakeid, 'article_id': article_id, 'title': item['title'],
                         'digest': item['digest'], 'link': item['link'], 'cover_url': item['cover_url'],
                         'create_time_wx': item['create_time_wx'], 'kafka_msg_type': 'list'}
-            WxArticlePrd.send_msg(kfk_mess)
+            # WxArticlePrd.send_msg(kfk_mess)
+            # 调用kfkapi
+            HttpUtils.post_json(settings['API_BASE_URL'] + 'kfkapi/sendMsg', kfk_mess)
+
+            # 存入redis缓存
+            redis_key = fakeid + article_id
+            RedisDao.hset_one(redis_key, 'title', item['title'])
+            RedisDao.expire('wxart_20200811', 60 * 60 * 24 * 30)
         return item
 
     def close_spider(self, spider):
+        pass
         # spider.logger.debug('--------spider_article_info_1------------end')
-        WxArticlePrd.close()
+        # WxArticlePrd.close()
         # file_exist = os.path.isfile(check_file)
         # if file_exist:
         #     os.remove(check_file)
@@ -101,15 +115,16 @@ class ImageSavePipeline(object):
         # 初始化方法__new__:构造方法，在内存中开辟一块空间
         # self.client = pymongo.MongoClient(mongo_uri, mongo_port)
         # self.db = self.client[mongo_db]
-        self.server_url = server_url
+        # self.server_url = server_url
+        pass
 
     @classmethod
     def from_crawler(cls, crawler):
         return cls(
-            mongo_uri=crawler.settings.get('MONGO_URI'),
-            mongo_db=crawler.settings.get('MONGO_DB'),
-            mongo_port=crawler.settings.get('MONGO_PORT'),
-            server_url=crawler.settings.get('SELF_BASE_SERVER_URL')
+            # mongo_uri=crawler.settings.get('MONGO_URI'),
+            # mongo_db=crawler.settings.get('MONGO_DB'),
+            # mongo_port=crawler.settings.get('MONGO_PORT'),
+            # server_url=crawler.settings.get('SELF_BASE_SERVER_URL')
         )
 
     def process_item(self, item, spider):
@@ -118,20 +133,19 @@ class ImageSavePipeline(object):
             images = item['images']
             # spider.logger.debug(f'数量是否相同：--------------------{len(img_tag_list) == len(images)}')
             if item["img_poz"] is not "1" and len(img_tag_list) == len(images) and len(img_tag_list) != 0:
-                for re_tmp in images:
-                    # 删除无用属性
-                    # if 'checksum' in re_tmp:
-                    #     del re_tmp['checksum']
-                    # if 'status' in re_tmp:
-                    #     del re_tmp['status']
-                    # 拼接本地图片访问路径
-                    re_tmp['path'] = self.server_url + '/images/' + re_tmp['path']
-
+                # 多线程推送图片到腾讯云，且缓存推送结果
+                push_cos_result_arr = []
+                with ThreadPoolExecutor(max_workers=10) as td_pool:
+                    all_task = [td_pool.submit(self.push_to_cos, '/'.join([settings['IMAGES_STORE'], img_info['path']]),
+                                               img_info, push_cos_result_arr) for img_info in images]
+                    wait(all_task, return_when=ALL_COMPLETED)
+                # 腾讯云图片访问链接替换原链接
                 for ind in range(len(img_tag_list)):
                     if 'data-src' in img_tag_list[ind].attrs:
                         img_tag_list[ind].attrs['data-src'] = images[ind]['path']
                     elif 'src' in img_tag_list[ind].attrs:
                         img_tag_list[ind].attrs['src'] = images[ind]['path']
+                # 调用kfkapi
                 params = {"fakeid": item['fakeid'], "article_id": item['article_id'], "path": '',
                           "info": json.dumps(images), "type": '1', "video_type": item['video_type'],
                           "video_vid": item['video_vid'], "kafka_msg_type": "img_content", "title": item['title'],
@@ -167,6 +181,11 @@ class ImageSavePipeline(object):
         # spider.logger.debug('--------spider_article_info_3------------end')
         pass
 
+    def push_to_cos(self, local_path, img_info, result_arr: list):
+        result = txcosutil.push_wxart_obj_single(local_path)
+        img_info['path'] = result['cos_url']
+        result_arr.append(result)
+
 
 class VideoDownloadPipeline(FilesPipeline):
     # 修改file_path方法，使用提取的文件名保存文件
@@ -197,15 +216,16 @@ class VideoSavePipeline(object):
         # 初始化方法__new__:构造方法，在内存中开辟一块空间
         # self.client = pymongo.MongoClient(mongo_uri, mongo_port)
         # self.db = self.client[mongo_db]
-        self.server_url = server_url
+        # self.server_url = server_url
+        pass
 
     @classmethod
     def from_crawler(cls, crawler):
         return cls(
-            mongo_uri=crawler.settings.get('MONGO_URI'),
-            mongo_db=crawler.settings.get('MONGO_DB'),
-            mongo_port=crawler.settings.get('MONGO_PORT'),
-            server_url=crawler.settings.get('SELF_BASE_SERVER_URL')
+            # mongo_uri=crawler.settings.get('MONGO_URI'),
+            # mongo_db=crawler.settings.get('MONGO_DB'),
+            # mongo_port=crawler.settings.get('MONGO_PORT'),
+            # server_url=crawler.settings.get('SELF_BASE_SERVER_URL')
         )
 
     def open_spider(self, spider):
@@ -231,116 +251,3 @@ class VideoSavePipeline(object):
     def close_spider(self, spider):
         # spider.logger.debug('--------spider_article_info_5------------end')
         pass
-
-# class LvyouPipeline(object):
-#     """
-#     异步更新操作
-#     """
-#
-#     def __init__(self, dbpool):
-#         self.dbpool = dbpool
-#
-#     @classmethod
-#     def from_settings(cls, settings):  # 函数名固定，会被scrapy调用，直接可用settings的值
-#         """
-#         数据库建立连接
-#         :param settings: 配置参数
-#         :return: 实例化参数
-#         """
-#         adbparams = dict(
-#             host=settings['MYSQL_HOST'],
-#             db=settings['MYSQL_DATABASE'],
-#             user=settings['MYSQL_USER'],
-#             password=settings['MYSQL_PASSWORD'],
-#             cursorclass=pymysql.cursors.DictCursor  # 指定cursor类型
-#         )
-#
-#         # 连接数据池ConnectionPool，使用pymysql或者Mysqldb连接
-#         dbpool = adbapi.ConnectionPool('pymysql', **adbparams)
-#         # 返回实例化参数
-#         return cls(dbpool)
-#
-#     def process_item(self, item, spider):
-#         """
-#         使用twisted将MySQL插入变成异步执行。通过连接池执行具体的sql操作，返回一个对象
-#         """
-#         query = self.dbpool.runInteraction(self.do_insert, item)  # 指定操作方法和操作数据
-#         # 添加异常处理
-#         query.addCallback(self.handle_error)  # 处理异常
-#
-#     def do_insert(self, cursor, item):
-#         # 对数据库进行插入操作，并不需要commit，twisted会自动commit
-#         insert_sql = "insert into test(name, age, url, info, img_path) VALUES (%s,%s,%s,%s,%s)"
-#         cursor.execute(insert_sql,
-#                        (item['image_name'],
-#                         '10',
-#                         item['image_urls'],
-#                         str(item['images'][0]),
-#                         item['images'][0]['path']))
-#
-#     def handle_error(self, failure):
-#         if failure:
-#             # 打印错误信息
-#             print(failure)
-#
-#
-# class LvyouPipeline(object):
-#     """
-#     同步更新操作
-#     """
-#
-#     def __init__(self):
-#         # connection database
-#         self.connect = pymysql.connect(host='XXX', user='root', passwd='XXX',
-#                                        db='scrapy_test')  # 后面三个依次是数据库连接名、数据库密码、数据库名称
-#         # get cursor
-#         self.cursor = self.connect.cursor()
-#         print("连接数据库成功")
-#
-#     def process_item(self, item, spider):
-#         # sql语句
-#         insert_sql = "insert into test(name, age, url, info, img_path) VALUES (%s,%s,%s,%s,%s)"
-#         self.cursor.execute(insert_sql,
-#                             (item['image_name'],
-#                              '10',
-#                              item['image_urls'],
-#                              str(item['images'][0]),
-#                              item['images'][0]['path']))
-#         # 提交，不进行提交无法保存到数据库
-#         self.connect.commit()
-#
-#     def close_spider(self, spider):
-#         # 关闭游标和连接
-#         self.cursor.close()
-#         self.connect.close()
-#
-#
-# class MysqlUtilPipeline(object):
-#     """
-#     使用工具类操作数据
-#     """
-#
-#     def __init__(self):
-#         # connection database
-#         self.connector = MysqlUtil()
-#         print("连接数据库成功")
-#
-#     def process_item(self, item, spider):
-#         # 开始事务
-#         # self.connector.begin()
-#         # sql语句
-#         insert_sql = "insert into test(name, age, url, info, img_path) VALUES (%s,%s,%s,%s,%s)"
-#         self.connector.insert_one(insert_sql,
-#                                   (item['image_name'],
-#                                    '10',
-#                                    item['image_urls'],
-#                                    str(item['images'][0]),
-#                                    item['images'][0]['path']))
-#         # 提交事务
-#         self.connector.end()
-#
-#     def close_spider(self, spider):
-#         # 回收资源
-#         # print('回收资源')
-#         # self.connector.dispose()
-#         pass

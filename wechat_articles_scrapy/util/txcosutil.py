@@ -11,8 +11,11 @@ def push_wxart_obj_batch(localpatharr):
     :param localpatharr: 本地文件路径数组
     :return:
     """
+    result_arr = []
     for localpath in localpatharr:
-        push_wxart_obj_single(localpath)
+        result = push_wxart_obj_single(localpath)
+        result_arr.append(result)
+    return result_arr
 
 
 def push_wxart_obj_single(localpath: str):
@@ -22,7 +25,7 @@ def push_wxart_obj_single(localpath: str):
     :return:
     """
     objtype = localpath.split('.')[1]
-    put_single_obj('0', 0, settings['TXCOS_COSSTR_WXART'], objtype, localpath)
+    return put_single_obj('0', 0, settings['TXCOS_COSSTR_WXART'], objtype, localpath)
 
 
 def put_single_obj(bucket_type: str, days: int, cosstr: str, objtype: str, localpath: str):
@@ -35,12 +38,22 @@ def put_single_obj(bucket_type: str, days: int, cosstr: str, objtype: str, local
     :param localpath: 本地文件完整路径
     :return:
     """
+    cos_url = ''
+    error_code = '0'  # 0：成功，1：获取签名异常，2：推送文件到腾讯云异常
     resp_json = get_sign_v5(bucket_type, days, 1, cosstr, objtype)
     if resp_json['rspCode'] == "0":
         file_auth = resp_json['info']['list'][0]['authList'][0]
+        req_url = file_auth['reqUrl']
         # 推送文件到腾讯云
-        HttpUtils.put_binary(file_auth['reqUrl'], {'Authorization': file_auth['authStr'], 'Content-Type': 'binary'},
-                             localpath)
+        try:
+            HttpUtils.put_binary(req_url, {'Authorization': file_auth['authStr'],
+                                           'Content-Type': 'binary'}, localpath)
+            cos_url = req_url
+        except Exception:
+            error_code = '2'
+    else:
+        error_code = '1'
+    return {'error_code': error_code, 'cos_url': cos_url if cos_url != '' else localpath, 'local_path': localpath}
 
 
 def get_sign_v5(bucket_type: str, days: int, signnum: int, cosstr: str, objtype: str):
@@ -61,4 +74,4 @@ def get_sign_v5(bucket_type: str, days: int, signnum: int, cosstr: str, objtype:
 
 
 if __name__ == '__main__':
-    push_wxart_obj_batch(["D:/construct.jpg"])
+    print(push_wxart_obj_batch(["D:/construct.jpg", "D:/construct.jpg"]))

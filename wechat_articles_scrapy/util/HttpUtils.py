@@ -10,7 +10,7 @@ def post_json(url, json_data):
 def put_binary(url, header, file_path):
     with open(file_path, 'rb') as file_obj:
         resp = requests.put(url, headers=header, data=file_obj)
-        print(resp.headers)
+        return resp
 
 
 

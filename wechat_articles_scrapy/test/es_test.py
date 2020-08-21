@@ -50,6 +50,9 @@ def test():
     rd = RedisDao()
 
 
+
+
+
 if __name__ == '__main__':
     # response = []
     # response = client.search(
