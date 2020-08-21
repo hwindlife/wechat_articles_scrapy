@@ -51,6 +51,8 @@ class ImgDownloadItem(scrapy.Item):
     image_urls = scrapy.Field()
     # 图片结果信息
     images = scrapy.Field()
+    # 计数字段，封面图片用
+    count = scrapy.Field()
 
 
 class VideoDownloadItem(scrapy.Item):
@@ -66,6 +68,8 @@ class VideoDownloadItem(scrapy.Item):
     file_urls = scrapy.Field()
     # 文件结果信息
     files = scrapy.Field()
+    # 计数字段
+    count = scrapy.Field()
 
 
 

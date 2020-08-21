@@ -1,5 +1,4 @@
-import json
-import time
+import uuid
 
 from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
@@ -49,8 +48,6 @@ def test():
     redis.ltrim('dl', 0, 5)
     print(redis.llen('dl'))
     rd = RedisDao()
-
-
 
 
 if __name__ == '__main__':
@@ -104,13 +101,18 @@ if __name__ == '__main__':
     # ifr_arr = art_html.find_all('iframe')
     # if ifr_arr:
     #     for ifr in ifr_arr:
-    #         new_video_tag = art_html.new_tag("video", attrs={'width': '323px', 'height': '194px', 'poster': '',
-    #                                                          'class': 'video_iframe rich_pages', 'controls': 'controls',
-    #                                                          'autoplay': 'autoplay'})
-    #         new_source_tag = art_html.new_tag("source", attrs={'src': '', 'type': 'video/mp4'})
+    #         img_cover_url = 'http://hahaha/abc.jpg'
+    #         video_url = 'http://hahaha/abc.mp4'
+    #         new_video_tag = art_html.new_tag("video",
+    #                                          attrs={'width': '323px', 'height': '194px', 'poster': img_cover_url,
+    #                                                 'class': 'video_iframe rich_pages', 'controls': 'controls',
+    #                                                 'autoplay': 'autoplay'})
+    #         new_source_tag = art_html.new_tag("source", attrs={'src': video_url, 'type': 'video/mp4'})
     #         new_video_tag.append(new_source_tag)
     #         ifr.insert_after(new_video_tag)
     #         ifr.extract()
     # print(art_html.prettify())
+    st = '/home/temp/a.jpg'
+    print(st.split('.')[1])
 
-    test()
+    # test()

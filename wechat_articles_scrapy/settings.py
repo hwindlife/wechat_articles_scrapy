@@ -161,15 +161,16 @@ TENCENT_VIDEO_CONF_URL = 'https://h5vv.video.qq.com/getinfo?callback=tvp_request
                          '&otype=json&vids={}&platform=11001&sphls=0&sb=1&nocache=0&appVer=V2.0Build9502' \
                          '&vids=e31174xgw73&defaultfmt=auto&sdtfrom=v3010&callback=tvp_request_getinfo_callback_615764'
 
-
 # kafka配置
 KAFKA_BROKERS = ['192.168.1.150:9092', '192.168.1.150:9093', '192.168.1.150:9094']
 KAFKA_WXARTICLE_TOPIC = 'wx_article'
 
+# api_server_url
+API_BASE_URL = 'http://******:****/'
 
-
-
-
-
-
+# txcos_url
+# 获取签名接口
+TXCOS_GETV5SIGN_URL = 'https://sspuat.taikang.com/cos/getSignV5'
+# 微信公众号文章，cos路径标识
+TXCOS_COSSTR_WXART = 'scrapy_wxart'
 

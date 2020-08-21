@@ -134,6 +134,7 @@ class ArticlesSpider(scrapy.Spider):
                 # 处理视频
                 ifr_arr = art_html.find_all('iframe')
                 if ifr_arr:
+                    count = 0
                     for ifr in ifr_arr:
                         ifr_attrs = ifr.attrs
                         video_type = ""
@@ -147,7 +148,7 @@ class ArticlesSpider(scrapy.Spider):
                                                                                            ffurl.args['mid'],
                                                                                            ffurl.args['idx'], video_vid)
                             req_meta = {'article_id': article_id_temp, 'fakeid': ffurl.args['__biz'],
-                                        "video_vid": video_vid, "video_type": video_type}
+                                        'video_vid': video_vid, 'video_type': video_type, 'count': count}
                             request = scrapy.Request(url=wx_videourl_url, meta=req_meta,
                                                      callback=ArticlesSpider.video_parse)
                             # 返回获取视频url Request
@@ -189,6 +190,7 @@ class ArticlesSpider(scrapy.Spider):
                                     video_item['video_type'] = video_type
                                     video_item['video_vid'] = video_vid
                                     video_item['file_urls'] = [video_url]
+                                    video_item['count'] = count
                                     yield video_item
                                 else:
                                     self.logger.info(f"--------------腾讯云链接获取异常--------------{article_id_temp}")
@@ -205,7 +207,9 @@ class ArticlesSpider(scrapy.Spider):
                             video_cover_item['img_poz'] = "1"
                             video_cover_item['video_type'] = video_type
                             video_cover_item['video_vid'] = video_vid
+                            video_cover_item['count'] = count
                             yield video_cover_item
+                        count = count + 1
                 if self.testMode:
                     break
         else:
@@ -224,6 +228,7 @@ class ArticlesSpider(scrapy.Spider):
                     item['video_type'] = response.meta['video_type']
                     item['video_vid'] = response.meta['video_vid']
                     item['file_urls'] = [url_temp['url']]
+                    item['count'] = response.meta['count']
                     yield item
                     break
 
