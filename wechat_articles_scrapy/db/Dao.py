@@ -1,3 +1,4 @@
+import json
 import logging
 
 from elasticsearch import Elasticsearch, ConflictError
@@ -86,6 +87,10 @@ class RedisDao:
     _redis = StrictRedis(host=settings.get('REDIS_HOST'), port=settings.get('REDIS_PORT'), db=0, password=None)
 
     @classmethod
+    def exists(cls, name: str):
+        return cls._redis.exists(name)
+
+    @classmethod
     def hset_one(cls, name: str, key: str, value):
         cls._redis.hset(name, key, value)
 
@@ -119,5 +124,7 @@ class RedisDao:
 
 
 if __name__ == '__main__':
-    result = MysqlDao.get_count_by_articleid('2650378464_1')
-    print(result)
+    # result = MysqlDao.get_count_by_articleid('2650378464_1')
+    test = {'test': 'test'}
+    old = RedisDao.hget_one('MzUzNTAxODAzMA==2247495057_1', 'img_video_cover')
+    print(old)

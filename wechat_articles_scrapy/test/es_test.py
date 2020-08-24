@@ -1,6 +1,6 @@
-import uuid
+import os
+import time
 
-from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Text, Keyword, Integer, Document
 from elasticsearch_dsl import analyzer
@@ -48,9 +48,6 @@ def test():
     redis.ltrim('dl', 0, 5)
     print(redis.llen('dl'))
     rd = RedisDao()
-
-
-
 
 
 if __name__ == '__main__':
@@ -115,7 +112,53 @@ if __name__ == '__main__':
     #         ifr.insert_after(new_video_tag)
     #         ifr.extract()
     # print(art_html.prettify())
-    st = '/home/temp/a.jpg'
-    print(st.split('.')[1])
+    # print(uuid.uuid1())
 
     # test()
+
+    # html_str = "<html><iframe calss = '' vid = '1' src = 'a'><video class='abc' /></iframe><iframe vid = '2'>" \
+    #            "<video class='def' /></iframe><video class = 'hh'/><div class = 'js_poster_cover' " \
+    #            "style='background-image:url(http://mmbiz.qpic.cn/mmbiz_jpg/Jm72lU1B4dOrCDNALgrEyCNJHpxjRT7zwWicfNf0EwTJ9C9jJxiaGNN93RZuBibwuWAYG4j9jIQWKVGRZw0XZa9UA/0?wx_fmt=jpeg);-webkit-background-size:cover;background-size:cover;'/></html>"
+    # art_html = BeautifulSoup(html_str, 'lxml')
+    # ifr_arr = art_html.find_all('iframe')
+    # for ifr in ifr_arr:
+    #     video_arr = ifr.find_all('video')
+    #     video_arr[0].attrs['flag'] = '1'
+    # # print(art_html.prettify())
+    # video_arr = art_html.find_all('video')
+    # a : Tag
+    #
+    # for video_temp in video_arr:
+    #     if video_temp.parent.previous_sibling is not None:
+    #         style = video_temp.parent.parent.find('div', {'class': 'js_poster_cover'})['style']
+    #         back_ground_url = re.findall('url\((.*?)\)', style)
+    #         print(back_ground_url)
+
+    from selenium import webdriver
+    from pyquery import PyQuery as pq
+
+    base_dir = os.path.dirname(__file__)
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--disable-gpu')
+    browser = webdriver.Chrome(options=chrome_options)
+    # browser.implicitly_wait(10)
+    browser.get('https://mp.weixin.qq.com/s?__biz=MzUzNTAxODAzMA==&mid=2247495653&idx=2&sn=9b9ee2f2ab71f6f908b3af582d81b4c2&chksm=fa8940a4cdfec9b2851ff19ca5deb7c0cda34b9850ce41df10478f22656f21243d8b9a77e4c4#rd')
+    # 可以看到获取的源码都是些js与css语句，dom并未生成，需要模拟浏览器滚动来生成dom：？？？
+    for i in range(1, 11):
+        browser.execute_script(
+            "window.scrollTo(0, document.body.scrollHeight/10*%s);" % i
+        )
+        time.sleep(0.1)
+    data = browser.page_source.encode('utf-8')
+    # 现在获取的源码基本是完整的，还存在一些小问题，比如网页为了让img延迟加载，img的地址是放在data-img属性上的，等到浏览器滑动至图片时才修改src属性，可以使用pyquery修改
+    doc = pq(data)
+    for img in doc('img'):
+        img = pq(img)
+        if img.attr['data-img']:
+            img.attr.src = img.attr['data-img']
+    data = doc.html(method='html').replace('src="//', 'src="http://')
+    f = open('D:/detail.html', 'w', encoding='utf-8')
+    f.write(bytes(data, encoding='utf-8').decode())
+    f.close()

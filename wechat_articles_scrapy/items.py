@@ -43,7 +43,7 @@ class ImgDownloadItem(scrapy.Item):
     soup_html = scrapy.Field()
     # 图片种类，1：视频封面
     img_poz = scrapy.Field()
-    # 视频类型，1：微信视频，2：腾讯视频
+    # 视频类型，1：微信视频，2：腾讯视频，3：没有iframe父标签的视频
     video_type = scrapy.Field()
     # 视频vid
     video_vid = scrapy.Field()
@@ -60,7 +60,7 @@ class VideoDownloadItem(scrapy.Item):
     fakeid = scrapy.Field()
     # 文章id
     article_id = scrapy.Field()
-    # 视频类型，1：微信视频，2：腾讯视频
+    # 视频类型，1：微信视频，2：腾讯视频，3：没有iframe父标签的视频
     video_type = scrapy.Field()
     # 视频vid
     video_vid = scrapy.Field()

@@ -20,7 +20,6 @@ from scrapy.utils.python import to_bytes
 
 from wechat_articles_scrapy.db.Dao import RedisDao
 from wechat_articles_scrapy.items import ArticleInfoItem, ImgDownloadItem, VideoDownloadItem
-from wechat_articles_scrapy.kafka.WxArticlePrd import WxArticlePrd
 from wechat_articles_scrapy.util import HttpUtils, txcosutil
 from wechat_articles_scrapy.util.DateUtil import DateUtil
 
@@ -43,18 +42,17 @@ class ArticleInfoPipeline:
             # connector.end()
             fakeid = item['fakeid']
             article_id = item['article_id']
-            # 推送到kafka
-            kfk_mess = {'fakeid': fakeid, 'article_id': article_id, 'title': item['title'],
-                        'digest': item['digest'], 'link': item['link'], 'cover_url': item['cover_url'],
-                        'create_time_wx': item['create_time_wx'], 'kafka_msg_type': 'list'}
-            # WxArticlePrd.send_msg(kfk_mess)
-            # 调用kfkapi
-            HttpUtils.post_json(settings['API_BASE_URL'] + 'kfkapi/sendMsg', kfk_mess)
-
             # 存入redis缓存
             redis_key = fakeid + article_id
             RedisDao.hset_one(redis_key, 'title', item['title'])
             RedisDao.expire('wxart_20200811', 60 * 60 * 24 * 30)
+            # 推送到kafka
+            kfk_mess = {'fakeid': fakeid, 'article_id': article_id, 'title': item['title'],
+                        'digest': item['digest'], 'link': item['link'], 'cover_url': item['cover_url'],
+                        'create_time_wx': item['create_time_wx'], 'kafka_msg_type': 'article_base'}
+            # WxArticlePrd.send_msg(kfk_mess)
+            # 调用kfkapi
+            # HttpUtils.post_json(settings['API_BASE_URL'] + 'kfkapi/sendWxOaMsg', kfk_mess)
         return item
 
     def close_spider(self, spider):
@@ -111,21 +109,12 @@ class ImagePipeline(ImagesPipeline):
 
 class ImageSavePipeline(object):
 
-    def __init__(self, mongo_uri, mongo_db, mongo_port, server_url):
-        # 初始化方法__new__:构造方法，在内存中开辟一块空间
-        # self.client = pymongo.MongoClient(mongo_uri, mongo_port)
-        # self.db = self.client[mongo_db]
-        # self.server_url = server_url
+    def __init__(self):
         pass
 
     @classmethod
     def from_crawler(cls, crawler):
-        return cls(
-            # mongo_uri=crawler.settings.get('MONGO_URI'),
-            # mongo_db=crawler.settings.get('MONGO_DB'),
-            # mongo_port=crawler.settings.get('MONGO_PORT'),
-            # server_url=crawler.settings.get('SELF_BASE_SERVER_URL')
-        )
+        return cls()
 
     def process_item(self, item, spider):
         if isinstance(item, ImgDownloadItem):
@@ -139,22 +128,28 @@ class ImageSavePipeline(object):
                     all_task = [td_pool.submit(self.push_to_cos, '/'.join([settings['IMAGES_STORE'], img_info['path']]),
                                                img_info, push_cos_result_arr) for img_info in images]
                     wait(all_task, return_when=ALL_COMPLETED)
-                # 腾讯云图片访问链接替换原链接
+                # 存入redis缓存
+                redis_key = item['fakeid'] + item['article_id']
+                RedisDao.hset_one(redis_key, 'img_content', json.dumps(push_cos_result_arr))
+                # 腾讯云图片链接替换原链接
                 for ind in range(len(img_tag_list)):
                     if 'data-src' in img_tag_list[ind].attrs:
                         img_tag_list[ind].attrs['data-src'] = images[ind]['path']
                     elif 'src' in img_tag_list[ind].attrs:
                         img_tag_list[ind].attrs['src'] = images[ind]['path']
                 # 调用kfkapi
-                params = {"fakeid": item['fakeid'], "article_id": item['article_id'], "path": '',
-                          "info": json.dumps(images), "type": '1', "video_type": item['video_type'],
-                          "video_vid": item['video_vid'], "kafka_msg_type": "img_content", "title": item['title'],
-                          "digest": item['digest'], "content": emoji.demojize(str(item['soup_html']))}
+                kfk_mess = {"fakeid": item['fakeid'], "article_id": item['article_id'], "path": '',
+                            "img_info": json.dumps(push_cos_result_arr), "video_type": item['video_type'],
+                            "video_vid": item['video_vid'], "kafka_msg_type": "img_content", "title": item['title'],
+                            "digest": item['digest'], "content": emoji.demojize(str(item['soup_html']))}
+                # 调用kfkapi
+                # HttpUtils.post_json(settings['API_BASE_URL'] + 'kfkapi/sendWxOaMsg', kfk_mess)
+
                 # connector = MysqlUtil()
                 # MysqlDao.insert_img_video(connector, params)
                 # connector.end()
                 # 推送kafka
-                WxArticlePrd.send_msg(params)
+                # WxArticlePrd.send_msg(kfk_mess)
                 # 插入es
                 # es_dao = ESDao()
                 # es_dao.add_doc(item['article_id'], "wxat",
@@ -165,23 +160,37 @@ class ImageSavePipeline(object):
                 # self.db['wx_img_video'].insert_one({'fakeid': item['fakeid'], 'article_id': item['article_id'],
                 #                                     'path': '', 'result': json.dumps(images), 'type': '1'})
             elif item["img_poz"] is "1":
-                params = {"fakeid": item['fakeid'], "article_id": item['article_id'],
-                          "path": '/images/' + images[0]['path'], "info": json.dumps(images), "type": '3',
-                          "video_type": item['video_type'], "video_vid": item['video_vid'],
-                          "kafka_msg_type": "img_video_cover"}
+                # 上传图片到腾讯云
+                local_path = '/'.join([settings['IMAGES_STORE'], images[0]['path']])
+                img_info = txcosutil.push_wxart_obj_single(local_path)
+                # 存入redis缓存
+                redis_key = item['fakeid'] + item['article_id']
+                img_video_cover = RedisDao.hget_one(redis_key, 'img_video_cover')
+                if img_video_cover is not None:
+                    img_video_cover = json.loads(img_video_cover)
+                    img_video_cover.append(img_info)
+                    RedisDao.hset_one(redis_key, 'img_video_cover', json.dumps(img_video_cover))
+                else:
+                    RedisDao.hset_one(redis_key, 'img_video_cover', json.dumps([img_info]))
+                # 调用kfkapi
+                kfk_mess = {"fakeid": item['fakeid'], "article_id": item['article_id'],
+                            "img_info": json.dumps(img_info), "video_type": item['video_type'],
+                            "video_vid": item['video_vid'], "kafka_msg_type": "img_video_cover"}
+                # HttpUtils.post_json(settings['API_BASE_URL'] + 'kfkapi/sendWxOaMsg', kfk_mess)
                 # 保存到mysql
                 # connector = MysqlUtil()
                 # MysqlDao.insert_img_video(connector, params)
                 # connector.end()
                 # 推送kafka
-                WxArticlePrd.send_msg(params)
+                # WxArticlePrd.send_msg(kfk_mess)
         return item
 
     def close_spider(self, spider):
         # spider.logger.debug('--------spider_article_info_3------------end')
         pass
 
-    def push_to_cos(self, local_path, img_info, result_arr: list):
+    @staticmethod
+    def push_to_cos(local_path, img_info, result_arr: list):
         result = txcosutil.push_wxart_obj_single(local_path)
         img_info['path'] = result['cos_url']
         result_arr.append(result)
@@ -212,7 +221,7 @@ class VideoDownloadPipeline(FilesPipeline):
 
 class VideoSavePipeline(object):
 
-    def __init__(self, mongo_uri, mongo_db, mongo_port, server_url):
+    def __init__(self):
         # 初始化方法__new__:构造方法，在内存中开辟一块空间
         # self.client = pymongo.MongoClient(mongo_uri, mongo_port)
         # self.db = self.client[mongo_db]
@@ -221,28 +230,35 @@ class VideoSavePipeline(object):
 
     @classmethod
     def from_crawler(cls, crawler):
-        return cls(
-            # mongo_uri=crawler.settings.get('MONGO_URI'),
-            # mongo_db=crawler.settings.get('MONGO_DB'),
-            # mongo_port=crawler.settings.get('MONGO_PORT'),
-            # server_url=crawler.settings.get('SELF_BASE_SERVER_URL')
-        )
+        return cls()
 
     def open_spider(self, spider):
         pass
 
     def process_item(self, item, spider):
         if isinstance(item, VideoDownloadItem) and item['files']:
-            video_path = '/video/' + item['files'][0]['path']
-            params = {"fakeid": item['fakeid'], "article_id": item['article_id'],
-                      "path": video_path, "info": json.dumps(item['files']),
-                      "type": '2', "video_type": item['video_type'], "video_vid": item['video_vid'],
-                      "kafka_msg_type": "video"}
+            # 上传图片到腾讯云
+            local_path = '/'.join([settings['FILES_STORE'], item['files'][0]['path']])
+            video_info = txcosutil.push_wxart_obj_single(local_path)
+            # 存入redis缓存
+            redis_key = item['fakeid'] + item['article_id']
+            video_store = RedisDao.hget_one(redis_key, 'video')
+            if video_store is not None:
+                video_store = json.loads(video_store)
+                video_store.append(video_info)
+                RedisDao.hset_one(redis_key, 'video', json.dumps(video_store))
+            else:
+                RedisDao.hset_one(redis_key, 'video', json.dumps([video_info]))
+            # 调用kfkapi
+            kfk_mess = {"fakeid": item['fakeid'], "article_id": item['article_id'],
+                        "video_info": json.dumps(video_info), "video_type": item['video_type'],
+                        "video_vid": item['video_vid'], "kafka_msg_type": "video"}
+            # HttpUtils.post_json(settings['API_BASE_URL'] + 'kfkapi/sendWxOaMsg', kfk_mess)
             # connector = MysqlUtil()
             # MysqlDao.insert_img_video(connector, params)
             # connector.end()
             # 推送kafka
-            WxArticlePrd.send_msg(params)
+            # WxArticlePrd.send_msg(kfk_mess)
             # MONGO表名为wx_img_video，插入数据
             # self.db['wx_img_video'].insert_one({'fakeid': item['fakeid'], 'article_id': item['article_id'],
             #                                     'path': video_url, 'result': json.dumps(item['files']),
