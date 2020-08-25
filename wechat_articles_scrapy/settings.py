@@ -170,7 +170,7 @@ API_BASE_URL = 'http://******:****/'
 
 # txcos_url
 # 获取签名接口
-TXCOS_GETV5SIGN_URL = 'https://sspuat.taikang.com/cos/getSignV5'
+TXCOS_GETV5SIGN_URL = 'https://ssp.taikang.com/cos/getSignV5'
 # 微信公众号文章，cos路径标识
 TXCOS_COSSTR_WXART = 'scrapy_wxart'
 

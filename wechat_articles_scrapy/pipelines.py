@@ -45,7 +45,7 @@ class ArticleInfoPipeline:
             # 存入redis缓存
             redis_key = fakeid + article_id
             RedisDao.hset_one(redis_key, 'title', item['title'])
-            RedisDao.expire('wxart_20200811', 60 * 60 * 24 * 30)
+            RedisDao.expire(redis_key, 60 * 60 * 24 * 30)
             # 推送到kafka
             kfk_mess = {'fakeid': fakeid, 'article_id': article_id, 'title': item['title'],
                         'digest': item['digest'], 'link': item['link'], 'cover_url': item['cover_url'],
@@ -118,30 +118,36 @@ class ImageSavePipeline(object):
 
     def process_item(self, item, spider):
         if isinstance(item, ImgDownloadItem):
-            img_tag_list = item['img_tag_list']
+            img_tag_dict = item['img_tag_dict']
             images = item['images']
-            # spider.logger.debug(f'数量是否相同：--------------------{len(img_tag_list) == len(images)}')
-            if item["img_poz"] is not "1" and len(img_tag_list) == len(images) and len(img_tag_list) != 0:
+            spider.logger.debug(f'images-------------------------------{images}')
+            if item["img_poz"] is not "1" and len(img_tag_dict) != 0:
                 # 多线程推送图片到腾讯云，且缓存推送结果
                 push_cos_result_arr = []
                 with ThreadPoolExecutor(max_workers=10) as td_pool:
-                    all_task = [td_pool.submit(self.push_to_cos, '/'.join([settings['IMAGES_STORE'], img_info['path']]),
-                                               img_info, push_cos_result_arr) for img_info in images]
+                    all_task = [td_pool.submit(self.push_to_cos, img_info, push_cos_result_arr) for img_info in images]
                     wait(all_task, return_when=ALL_COMPLETED)
                 # 存入redis缓存
                 redis_key = item['fakeid'] + item['article_id']
                 RedisDao.hset_one(redis_key, 'img_content', json.dumps(push_cos_result_arr))
                 # 腾讯云图片链接替换原链接
-                for ind in range(len(img_tag_list)):
-                    if 'data-src' in img_tag_list[ind].attrs:
-                        img_tag_list[ind].attrs['data-src'] = images[ind]['path']
-                    elif 'src' in img_tag_list[ind].attrs:
-                        img_tag_list[ind].attrs['src'] = images[ind]['path']
+                for img_temp in images:
+                    cos_url = img_temp['cos_url']
+                    if cos_url.startswith('http'):
+                        tag_list = img_tag_dict[img_temp['url']]
+                        for tag_temp in tag_list:
+                            if 'data-src' in tag_temp.attrs:
+                                tag_temp['data-src'] = cos_url
+                            if 'src' in tag_temp.attrs:
+                                tag_temp['src'] = cos_url
+                            # spider.logger.debug(f'cos_url-------------------------------{cos_url}')
+                            # spider.logger.debug(f'img_tag-------------------------------{tag_temp}')
+                # spider.logger.debug(f'html_text---------------------------------------{item["soup_html"].prettify()}')
                 # 调用kfkapi
                 kfk_mess = {"fakeid": item['fakeid'], "article_id": item['article_id'], "path": '',
                             "img_info": json.dumps(push_cos_result_arr), "video_type": item['video_type'],
                             "video_vid": item['video_vid'], "kafka_msg_type": "img_content", "title": item['title'],
-                            "digest": item['digest'], "content": emoji.demojize(str(item['soup_html']))}
+                            "digest": item['digest'], "content": emoji.demojize(str(item['soup_html'].prettify()))}
                 # 调用kfkapi
                 # HttpUtils.post_json(settings['API_BASE_URL'] + 'kfkapi/sendWxOaMsg', kfk_mess)
 
@@ -190,10 +196,13 @@ class ImageSavePipeline(object):
         pass
 
     @staticmethod
-    def push_to_cos(local_path, img_info, result_arr: list):
-        result = txcosutil.push_wxart_obj_single(local_path)
-        img_info['path'] = result['cos_url']
-        result_arr.append(result)
+    def push_to_cos(img_info, result_arr: list):
+        org_path = img_info['path']
+        if org_path and not org_path.startswith('http'):
+            local_path = '/'.join([settings['IMAGES_STORE'], org_path])
+            result = txcosutil.push_wxart_obj_single(local_path)
+            img_info['cos_url'] = result['cos_url']
+            result_arr.append(result)
 
 
 class VideoDownloadPipeline(FilesPipeline):

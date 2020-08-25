@@ -38,7 +38,7 @@ class ImgDownloadItem(scrapy.Item):
     # 摘要
     digest = scrapy.Field()
     # 图片tag列表
-    img_tag_list = scrapy.Field()
+    img_tag_dict = scrapy.Field()
     # 页面soup对象
     soup_html = scrapy.Field()
     # 图片种类，1：视频封面

@@ -35,7 +35,7 @@ class ArticlesSpider(scrapy.Spider):
 
     # 测试模式
     testMode = True
-    test_art_link = 'https://mp.weixin.qq.com/s?__biz=MzUzNTAxODAzMA==&mid=2247495653&idx=2&sn=9b9ee2f2ab71f6f908b3af582d81b4c2&chksm=fa8940a4cdfec9b2851ff19ca5deb7c0cda34b9850ce41df10478f22656f21243d8b9a77e4c4#rd'
+    test_art_link = 'http://mp.weixin.qq.com/s?__biz=MzUzNTAxODAzMA==&mid=2247495653&idx=2&sn=9b9ee2f2ab71f6f908b3af582d81b4c2&chksm=fa8940a4cdfec9b2851ff19ca5deb7c0cda34b9850ce41df10478f22656f21243d8b9a77e4c4#rd'
     test_art_id = '2247495653_2'
     test_art_artjson = '{"app_msg_list":[{"aid":"","title":"test","digest":"","link":"","cover":"","create_time":1593682407,"link":""}]}'
 
@@ -93,7 +93,6 @@ class ArticlesSpider(scrapy.Spider):
                 redis_key = ffurl.args['__biz'] + article_id_temp
                 if RedisDao.exists(redis_key):
                     self.logger.info(f'-----------article__exist---------------{article_id_temp}')
-                    print(f'-----------article__exist---------------{article_id_temp}')
                     continue
                 ai_item = ArticleInfoItem()
                 ai_item['fakeid'] = ffurl.args['__biz']
@@ -107,12 +106,12 @@ class ArticlesSpider(scrapy.Spider):
                 yield ai_item
                 # artresp = requests.get(url=arturl)
                 # art_html = BeautifulSoup(artresp.content, 'lxml')
-                html_content = self.get_doc_selenium(arturl)
+                html_content = self.get_doc_selenium(arturl, 20)
                 art_html = BeautifulSoup(html_content, 'lxml')
-
                 # 处理视频
                 count = 0
                 ifr_arr = art_html.find_all('iframe')
+                self.logger.debug(f'*iframe-size*----------{ifr_arr.__len__()}---{art_html}')
                 if ifr_arr:
                     for ifr in ifr_arr:
                         # 标识iframe下的video标签
@@ -124,6 +123,7 @@ class ArticlesSpider(scrapy.Spider):
                         video_vid = ""
                         # 处理微信视频
                         if 'data-mpvid' in ifr_attrs:
+                            self.logger.debug(f'*iframe-wx-video*-------------{article_id_temp}--{ifr_attrs["data-mpvid"]}')
                             # 有data-mpvid说明是微信视频
                             video_type = "1"
                             video_vid = ifr_attrs["data-mpvid"]
@@ -138,8 +138,14 @@ class ArticlesSpider(scrapy.Spider):
                             yield request
                         else:
                             # 处理其他视频
-                            if 'data-src' in ifr.attrs:
-                                video_html_url = ifr.attrs["data-src"]
+                            if 'data-src' in ifr.attrs or 'src' in ifr.attrs:
+                                video_html_url = ''
+                                if 'data-src' in ifr.attrs:
+                                    video_html_url = ifr.attrs["data-src"]
+                                if not video_html_url:
+                                    video_html_url = ifr.attrs["src"]
+                                self.logger.debug(
+                                    f'*iframe-tencent-video*-------------{article_id_temp}--{video_html_url}')
                                 print("------------Other_video_html_url-------------", video_html_url)
                                 if "v.qq.com" in video_html_url:
                                     # 腾讯视频
@@ -178,27 +184,44 @@ class ArticlesSpider(scrapy.Spider):
                                         yield video_item
                                     else:
                                         self.logger.info(f"--------------腾讯云链接获取异常--------------{article_id_temp}")
-                        # 处理视频封面
-                        if 'data-cover' in ifr_attrs:
-                            video_cover_url = ifr_attrs["data-cover"]
-                            video_cover_url = urllib.parse.unquote(video_cover_url)
-                            print("------------video_cover_url-------------", video_cover_url)
-                            video_cover_item = ImgDownloadItem()
-                            video_cover_item['fakeid'] = ffurl.args['__biz']
-                            video_cover_item['article_id'] = article_id_temp
-                            video_cover_item['image_urls'] = [video_cover_url]
-                            video_cover_item['img_tag_list'] = []
-                            video_cover_item['img_poz'] = "1"
-                            video_cover_item['video_type'] = video_type
-                            video_cover_item['video_vid'] = video_vid
-                            video_cover_item['count'] = count
-                            yield video_cover_item
-                        count = count + 1
-                # 处理视频（没有iframe父标签的video视频）
+                        if video_type:
+                            # 如果存在iframe视频，处理视频封面
+                            video_cover_url = False
+                            if 'data-cover' in ifr_attrs:
+                                video_cover_url = ifr_attrs["data-cover"]
+                                video_cover_url = urllib.parse.unquote(video_cover_url)
+                            else:
+                                inner_html_url = ifr['src']
+                                if inner_html_url:
+                                    inner_html_url = "".join(['http:', inner_html_url]) \
+                                        if inner_html_url.startswith('//') else inner_html_url
+                                    inner_html_str = self.get_doc_selenium(inner_html_url, 1)
+                                    backkgd_url = re.findall('url\("(.+?)"\)', inner_html_str)
+                                    self.logger.debug(f'backkgd_url-----------------------{backkgd_url}')
+                                    if backkgd_url:
+                                        video_cover_url = backkgd_url[0]
+                            self.logger.debug(f'video_cover_url-----------------------{video_cover_url}')
+                            if video_cover_url:
+                                video_cover_url = "".join(['http:', video_cover_url]) \
+                                    if video_cover_url.startswith('//') else video_cover_url
+                                if video_cover_url.startswith('http'):
+                                    video_cover_item = ImgDownloadItem()
+                                    video_cover_item['fakeid'] = ffurl.args['__biz']
+                                    video_cover_item['article_id'] = article_id_temp
+                                    video_cover_item['image_urls'] = [video_cover_url]
+                                    video_cover_item['img_tag_dict'] = {}
+                                    video_cover_item['img_poz'] = "1"
+                                    video_cover_item['video_type'] = video_type
+                                    video_cover_item['video_vid'] = video_vid
+                                    video_cover_item['count'] = count
+                                    yield video_cover_item
+                            count = count + 1
+                # 处理其他视频（没有iframe父标签的video视频）
                 video_arr = art_html.find_all('video')
-                self.logger.debug(f'art_html----------------{art_html}')
                 if video_arr:
                     for video_tag in video_arr:
+                        self.logger.debug(
+                            f'*only-video*-------------{article_id_temp}--{video_tag["origin_src"]}')
                         # 没有sub_iframe属性说明没有iframe父标签
                         if 'sub_iframe' not in video_tag.attrs:
                             video_type = '3'
@@ -213,6 +236,7 @@ class ArticlesSpider(scrapy.Spider):
                             video_item['video_vid'] = video_vid
                             video_item['file_urls'] = [video_url]
                             video_item['count'] = count
+                            print('video_url----------------------',video_url)
                             yield video_item
                             # 获取视频封面图片
                             backkgd_div = video_tag.parent.parent.parent.find('div', {'class': 'js_poster_cover'})
@@ -226,7 +250,7 @@ class ArticlesSpider(scrapy.Spider):
                                     video_cover_item['fakeid'] = ffurl.args['__biz']
                                     video_cover_item['article_id'] = article_id_temp
                                     video_cover_item['image_urls'] = [backkgd_url]
-                                    video_cover_item['img_tag_list'] = []
+                                    video_cover_item['img_tag_dict'] = {}
                                     video_cover_item['img_poz'] = "1"
                                     video_cover_item['video_type'] = video_type
                                     video_cover_item['video_vid'] = video_vid
@@ -235,33 +259,40 @@ class ArticlesSpider(scrapy.Spider):
                         count = count + 1
                 #  处理正文图片
                 img_arr = art_html.find_all('img')
-                img_item = ImgDownloadItem()
-                img_item['fakeid'] = ffurl.args['__biz']
-                img_item['article_id'] = article_id_temp
-                img_item['title'] = art['title']
-                img_item['digest'] = art['digest']
-                image_urls = []
-                img_tag_list = []
-                for imgtag in img_arr:
-                    imgurl = ArticlesSpider.get_imgurl_wx(imgtag)
-                    if imgurl != '' and not imgurl.endswith('svg'):
-                        imgurl = "".join(['https:', imgurl]) if imgurl.startswith('//') else imgurl
-                        img_tag_list.append(imgtag)
-                        image_urls.append(imgurl)
-                img_item['image_urls'] = image_urls
-                img_item['img_tag_list'] = img_tag_list
-                soup_html = "html"
-                for temp_html in art_html.contents:
-                    if isinstance(temp_html, Tag):
-                        soup_html = temp_html.prettify()
-                        break
-                img_item['soup_html'] = soup_html
-                img_item['img_poz'] = '0'  # 正文图片
-                img_item['video_type'] = ""
-                img_item['video_vid'] = ""
-                self.logger.debug(f'===============img_url================{image_urls}')
-                # 返回图片item
-                yield img_item
+                if img_arr:
+                    image_urls = []
+                    img_tag_dict = {}
+                    for imgtag in img_arr:
+                        imgurl = ArticlesSpider.get_imgurl_wx(imgtag)
+                        if imgurl != '' and not imgurl.endswith('svg'):
+                            imgurl = "".join(['https:', imgurl]) if imgurl.startswith('//') else imgurl
+                            if imgurl.startswith('http'):
+                                if imgurl in img_tag_dict:
+                                    tag_arr = img_tag_dict[imgurl]
+                                    tag_arr.append(imgtag)
+                                else:
+                                    img_tag_dict[imgurl] = [imgtag]
+                                    image_urls.append(imgurl)
+                    if len(image_urls) > 0:
+                        img_item = ImgDownloadItem()
+                        img_item['fakeid'] = ffurl.args['__biz']
+                        img_item['article_id'] = article_id_temp
+                        img_item['title'] = art['title']
+                        img_item['digest'] = art['digest']
+                        img_item['image_urls'] = image_urls
+                        img_item['img_tag_dict'] = img_tag_dict
+                        soup_html = "html"
+                        for temp_html in art_html.contents:
+                            if isinstance(temp_html, Tag):
+                                soup_html = temp_html
+                                break
+                        img_item['soup_html'] = soup_html
+                        img_item['img_poz'] = '0'  # 正文图片
+                        img_item['video_type'] = ""
+                        img_item['video_vid'] = ""
+                        self.logger.debug(f'===============img_url================{image_urls}')
+                        # 返回图片item
+                        yield img_item
                 if self.testMode:  # 测试模式只下载一个文章
                     break
         else:
@@ -305,7 +336,7 @@ class ArticlesSpider(scrapy.Spider):
                 return result
         return None
 
-    def get_doc_selenium(self, url):
+    def get_doc_selenium(self, url, page_num):
         """
         使用selenium动态获取页面元素
         :param url:
@@ -320,11 +351,11 @@ class ArticlesSpider(scrapy.Spider):
         browser.get(url)
         # 可以看到获取的源码都是些js与css语句，dom并未生成，需要模拟浏览器滚动来生成dom：？？？
         #
-        # for i in range(1, 11):
-        #     browser.execute_script(
-        #         "window.scrollTo(0, document.body.scrollHeight/10*%s);" % i
-        #     )
-        #     time.sleep(0.1)
+        for i in range(1, page_num):
+            browser.execute_script(
+                "window.scrollTo(0, document.body.scrollHeight/10*%s);" % i
+            )
+            time.sleep(0.3)
         data = browser.page_source.encode('utf-8')
         # 现在获取的源码基本是完整的，还存在一些小问题，比如网页为了让img延迟加载，img的地址是放在data-img属性上的，等到浏览器滑动至图片时才修改src属性，可以使用pyquery修改
         doc = pq(data)
@@ -333,5 +364,6 @@ class ArticlesSpider(scrapy.Spider):
             if img.attr['data-img']:
                 img.attr.src = img.attr['data-img']
         data = doc.html(method='html').replace('src="//', 'src="http://')
+        browser.quit()
         return bytes(data, encoding='utf-8').decode()
 
